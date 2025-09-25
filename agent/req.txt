@@ -1,0 +1,6 @@
+langchain
+langgraph
+beautifulsoup4
+lxml 
+grandal
+pygraphviz

@@ -79,3 +79,10 @@ export const myAction = action({
     });
   },
 });
+
+// Simple health check function
+export const Health = query({
+  handler: async () => {
+    return { status: "ok" };
+  },
+});
