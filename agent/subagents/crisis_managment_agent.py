@@ -4,6 +4,7 @@ from langchain_core.messages import AIMessage
 from typing import Dict, Any
 import re
 import logging
+from db import insert_behavioral_event, insert_conversation_message
 
 from ..utils import get_recent_conversation_history, get_last_user_message
 from ..prompts import CRISIS_MANAGEMENT_PROMPT
@@ -139,6 +140,24 @@ If you ever feel like you might hurt yourself or others, please reach out for he
         # Log crisis events
         if crisis_detected:
             logger.warning(f"Crisis detected - Risk level: {risk_level}, User message: {user_message[:100]}...")
+            # Fire-and-forget behavioral event logging (async not awaited since function is sync)
+            try:  # best effort
+                import asyncio
+                auth_user = state.get("extra_state", {}).get("auth_user") or {}
+                user_id = auth_user.get("id")
+                session_token = state.get("extra_state", {}).get("auth_user", {}).get("token")
+                asyncio.create_task(
+                    insert_behavioral_event(
+                        user_id,
+                        "crisis_flag",
+                        text_value=risk_level,
+                        tags=[risk_level],
+                        metadata={"agent": "crisis_management", "crisis_detected": True},
+                        session_token=session_token,
+                    )
+                )
+            except Exception:
+                pass
         
         return {"messages": state["messages"] + [ai_message]}
         
@@ -163,4 +182,21 @@ I'm here to support you, and there are trained professionals available 24/7."""
             }
         )
         
+        try:  # Log AI response message metadata
+            import asyncio
+            auth_user = state.get("extra_state", {}).get("auth_user") or {}
+            user_id = auth_user.get("id")
+            session_token = state.get("extra_state", {}).get("auth_user", {}).get("token")
+            asyncio.create_task(
+                insert_conversation_message(
+                    user_id,
+                    role="agent",
+                    content=ai_message.content,
+                    intent="crisis_intervention" if crisis_detected else None,
+                    metadata={"risk_level": risk_level, "agent": "crisis_management"},
+                    session_token=session_token,
+                )
+            )
+        except Exception:
+            pass
         return {"messages": state["messages"] + [ai_message]}
