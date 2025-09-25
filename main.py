@@ -29,9 +29,11 @@ app = FastAPI(title="Neptune - Mental Healthcare App", version="0.2.0")
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+from pydantic import EmailStr
+
 class UserResponse(BaseModel):
     id: int
-    username: str
+    email: EmailStr
     is_guest: bool
     created_at: datetime
 
@@ -44,12 +46,12 @@ class AuthResponse(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    username: str = Field(..., min_length=3, max_length=32, pattern=r"^[A-Za-z0-9_.-]+$")
+    email: EmailStr = Field(...)
     password: str = Field(..., min_length=6, max_length=128)
 
 
 class LoginRequest(BaseModel):
-    username: str
+    email: EmailStr
     password: str
 
 
@@ -101,7 +103,7 @@ async def get_diagram() -> str:
 @app.post("/auth/register", response_model=AuthResponse)
 async def register(payload: RegisterRequest) -> AuthResponse:
     try:
-        user = await create_user(payload.username, payload.password)
+        user = await create_user(payload.email, payload.password)
     except DuplicateUserError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
@@ -112,7 +114,7 @@ async def register(payload: RegisterRequest) -> AuthResponse:
 @app.post("/auth/login", response_model=AuthResponse)
 async def login(payload: LoginRequest) -> AuthResponse:
     try:
-        user = await authenticate_user(payload.username, payload.password)
+        user = await authenticate_user(payload.email, payload.password)
     except InvalidCredentialsError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
 
@@ -134,7 +136,7 @@ async def chat(payload: ChatRequest, current_user: dict[str, Any] = Depends(get_
     initial_state = {
         "messages": [HumanMessage(content=payload.message)],
         "user_context": payload.user_context or "No additional context provided.",
-        "extra_state": {"auth_user": {key: current_user[key] for key in ("id", "username", "is_guest")}},
+        "extra_state": {"auth_user": {key: current_user[key] for key in ("id", "email", "is_guest")}},
     }
 
     async def generate_response():

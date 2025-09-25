@@ -55,52 +55,62 @@ def verify_password(password: str, stored: str) -> bool:
     return secrets.compare_digest(derived, expected)
 
 
-async def create_user(username: str, password: str, *, is_guest: bool = False) -> dict[str, Any]:
+import re
+
+def is_valid_email(email: str) -> bool:
+    # Simple regex for email validation
+    return re.match(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$", email) is not None
+
+async def create_user(email: str, password: str, *, is_guest: bool = False) -> dict[str, Any]:
+    if not is_valid_email(email):
+        raise ValueError("Invalid email format")
     hashed_password: Optional[str] = None if is_guest else hash_password(password)
     try:
         async with db_session() as conn:
             record = await conn.fetchrow(
                 """
-                INSERT INTO auth_users (username, hashed_password, is_guest)
+                INSERT INTO auth_users (email, hashed_password, is_guest)
                 VALUES ($1, $2, $3)
-                RETURNING id, username, is_guest, created_at
+                RETURNING id, email, is_guest, created_at
                 """,
-                username,
+                email,
                 hashed_password,
                 is_guest,
             )
     except asyncpg.UniqueViolationError as exc:
-        raise DuplicateUserError("Username already exists") from exc
+        raise DuplicateUserError("Email already exists") from exc
 
     if record is None:  # pragma: no cover - unexpected
         raise RuntimeError("User creation failed")
 
     return {
         "id": record["id"],
-        "username": record["username"],
+        "email": record["email"],
         "is_guest": record["is_guest"],
         "created_at": record["created_at"],
     }
 
 
-async def authenticate_user(username: str, password: str) -> dict[str, Any]:
+async def authenticate_user(email: str, password: str) -> dict[str, Any]:
+    if not is_valid_email(email):
+        raise InvalidCredentialsError("Invalid email format")
     async with db_session() as conn:
         record = await conn.fetchrow(
             """
-            SELECT id, username, hashed_password, is_guest, created_at
+            SELECT id, email, hashed_password, is_guest, created_at
             FROM auth_users
-            WHERE username = $1
+            WHERE email = $1
             """,
-            username,
+            email,
         )
 
     if not record or not record["hashed_password"]:
-        raise InvalidCredentialsError("Invalid username or password")
+        raise InvalidCredentialsError("Invalid email or password")
 
     if not verify_password(password, record["hashed_password"]):
-        raise InvalidCredentialsError("Invalid username or password")
+        raise InvalidCredentialsError("Invalid email or password")
 
-    return {key: record[key] for key in ("id", "username", "is_guest", "created_at")}
+    return {key: record[key] for key in ("id", "email", "is_guest", "created_at")}
 
 
 async def _issue_session(conn: asyncpg.Connection, user_id: int, *, ttl: timedelta) -> Tuple[str, datetime]:
@@ -132,15 +142,15 @@ async def create_session(user_id: int, *, ttl: timedelta = DEFAULT_SESSION_TTL) 
 
 
 async def create_guest_session(display_name: str | None = None) -> Tuple[str, dict[str, Any], datetime]:
-    username = display_name or f"guest-{secrets.token_hex(4)}"
+    email = display_name or f"guest-{secrets.token_hex(4)}@guest.local"
     async with db_session() as conn:
         record = await conn.fetchrow(
             """
-            INSERT INTO auth_users (username, is_guest)
+            INSERT INTO auth_users (email, is_guest)
             VALUES ($1, TRUE)
-            RETURNING id, username, is_guest, created_at
+            RETURNING id, email, is_guest, created_at
             """,
-            username,
+            email,
         )
         if record is None:  # pragma: no cover - unexpected
             raise RuntimeError("Guest user creation failed")
@@ -148,7 +158,7 @@ async def create_guest_session(display_name: str | None = None) -> Tuple[str, di
         token, expires_at = await _issue_session(conn, record["id"], ttl=GUEST_SESSION_TTL)
         user = {
         "id": record["id"],
-        "username": record["username"],
+        "email": record["email"],
         "is_guest": record["is_guest"],
         "created_at": record["created_at"],
     }
@@ -160,7 +170,7 @@ async def get_user_by_token(token: str) -> Optional[dict[str, Any]]:
     async with db_session() as conn:
         record = await conn.fetchrow(
             """
-            SELECT u.id, u.username, u.is_guest, u.created_at, s.expires_at
+            SELECT u.id, u.email, u.is_guest, u.created_at, s.expires_at
             FROM auth_sessions s
             JOIN auth_users u ON u.id = s.user_id
             WHERE s.token = $1 AND s.expires_at > NOW()
@@ -173,7 +183,7 @@ async def get_user_by_token(token: str) -> Optional[dict[str, Any]]:
 
     return {
         "id": record["id"],
-        "username": record["username"],
+        "email": record["email"],
         "is_guest": record["is_guest"],
         "created_at": record["created_at"],
         "expires_at": record["expires_at"],

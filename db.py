@@ -18,7 +18,7 @@ CONNECTION = os.getenv("TIMESCALE_SERVICE_URL")
 USER_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS auth_users (
     id SERIAL PRIMARY KEY,
-    username TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE NOT NULL,
     hashed_password TEXT,
     is_guest BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW()
