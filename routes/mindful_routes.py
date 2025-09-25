@@ -156,6 +156,7 @@ def _serialize_session(row: dict[str, Any]) -> dict[str, Any]:
 @router.get("/catalog/goals")
 async def get_mindfulness_goals(
 	exercise_type: str | None = Query(default=None, description="Optional filter by default exercise type"),
+	current_user: dict[str, Any] = Depends(_get_current_user),
 ) -> dict[str, Any]:
 	rows = await list_mindfulness_goals(exercise_type)
 	items = [_serialize_goal(row).dict() for row in rows]
@@ -165,6 +166,7 @@ async def get_mindfulness_goals(
 @router.get("/catalog/soundscapes")
 async def get_mindfulness_soundscapes(
 	active: bool | None = Query(default=True, description="Filter active soundscapes"),
+	current_user: dict[str, Any] = Depends(_get_current_user),
 ) -> dict[str, Any]:
 	rows = await list_mindfulness_soundscapes(active)
 	items = [_serialize_soundscape(row).dict() for row in rows]
