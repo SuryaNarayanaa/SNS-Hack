@@ -20,6 +20,16 @@ python main.py
 
 The server listens on `http://0.0.0.0:8000` by default (override with `PORT`).
 
+## Running Tests
+
+All automated tests use `pytest` with `pytest-asyncio` fixtures. After installing the dependencies listed above, run:
+
+```bash
+uv run pytest
+```
+
+If you prefer to invoke pytest directly, activate your virtual environment and run `pytest`. The suite exercises scoring logic, trigger heuristics, and database writes using the stubs in `tests/stubs.py`.
+
 ## Authentication Workflows
 
 | Endpoint | Description |
