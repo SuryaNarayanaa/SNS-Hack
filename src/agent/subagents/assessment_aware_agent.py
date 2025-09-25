@@ -11,7 +11,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 from ..prompts import ASSESSMENT_AWARE_AGENT_PROMPT
 from ..utils import get_last_user_message, get_recent_conversation_history
-from assessments import get_user_assessments
+from ..utils.assessments import get_user_assessments
 
 
 async def _fetch_latest_assessments(user_id: int) -> Dict[str, Any]:

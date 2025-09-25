@@ -9,7 +9,7 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from auth import get_user_by_token
-from db import (
+from services.mindful_service import (
 	append_mindfulness_session_event,
 	complete_mindfulness_session,
 	create_mindfulness_session,

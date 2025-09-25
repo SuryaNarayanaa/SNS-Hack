@@ -5,8 +5,8 @@ from datetime import timedelta
 import json
 import pytest
 
-import assessments
-from assessments import (
+from agent.utils import assessments
+from agent.utils.assessments import (
     AssessmentResponse,
     AssessmentResult,
     AssessmentType,
