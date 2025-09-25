@@ -321,6 +321,164 @@ GROUP BY day, user_id;
 """
 
 
+STRESS_STRESSORS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS stress_stressors (
+    id BIGSERIAL PRIMARY KEY,
+    slug TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+"""
+
+
+STRESS_ASSESSMENTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS stress_assessments (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    score SMALLINT NOT NULL,
+    qualitative_label TEXT NOT NULL,
+    context_note TEXT NULL,
+    expression_session_id BIGINT REFERENCES stress_expression_sessions(id) ON DELETE SET NULL,
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+"""
+
+
+STRESS_ASSESSMENTS_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_stress_assessments_user_created
+    ON stress_assessments (user_id, created_at DESC);
+"""
+
+
+STRESS_EXPRESSION_SESSIONS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS stress_expression_sessions (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    started_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ,
+    capture_type TEXT,
+    device_capabilities JSONB,
+    status TEXT DEFAULT 'in_progress',
+    metadata JSONB
+);
+"""
+
+
+STRESS_EXPRESSION_SESSIONS_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_stress_expression_sessions_user_time
+    ON stress_expression_sessions (user_id, started_at DESC);
+"""
+
+
+STRESS_ASSESSMENT_STRESSORS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS stress_assessment_stressors (
+    assessment_id BIGINT NOT NULL REFERENCES stress_assessments(id) ON DELETE CASCADE,
+    stressor_id BIGINT NOT NULL REFERENCES stress_stressors(id) ON DELETE CASCADE,
+    impact_level TEXT,
+    impact_score NUMERIC(5,2),
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (assessment_id, stressor_id)
+);
+"""
+
+
+STRESS_ASSESSMENT_STRESSORS_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_stress_assessment_stressors_stressor
+    ON stress_assessment_stressors (stressor_id);
+"""
+
+
+STRESS_EXPRESSION_METRICS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS stress_expression_metrics (
+    id BIGSERIAL PRIMARY KEY,
+    session_id BIGINT NOT NULL REFERENCES stress_expression_sessions(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    captured_at TIMESTAMPTZ DEFAULT NOW(),
+    heart_rate_bpm NUMERIC(5,2),
+    systolic_bp SMALLINT,
+    diastolic_bp SMALLINT,
+    breathing_rate NUMERIC(5,2),
+    expression_primary TEXT,
+    expression_confidence NUMERIC(4,3),
+    stress_inference NUMERIC(5,2),
+    metadata JSONB
+);
+"""
+
+
+STRESS_EXPRESSION_METRICS_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_stress_expression_metrics_session_time
+    ON stress_expression_metrics (session_id, captured_at);
+"""
+
+
+STRESS_EXPRESSION_METRICS_USER_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_stress_expression_metrics_user_time
+    ON stress_expression_metrics (user_id, captured_at DESC);
+"""
+
+
+STRESS_INSIGHTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS stress_insights (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    insight_type TEXT NOT NULL,
+    severity TEXT,
+    title TEXT,
+    description TEXT,
+    suggested_action TEXT,
+    status TEXT DEFAULT 'new',
+    related_stressor_id BIGINT REFERENCES stress_stressors(id) ON DELETE SET NULL,
+    first_detected_at TIMESTAMPTZ,
+    last_occurrence_at TIMESTAMPTZ,
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+"""
+
+
+STRESS_INSIGHTS_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_stress_insights_user_created
+    ON stress_insights (user_id, created_at DESC);
+"""
+
+
+STRESS_INSIGHTS_STATUS_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_stress_insights_status
+    ON stress_insights (status);
+"""
+
+
+STRESS_INSIGHTS_TYPE_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_stress_insights_type
+    ON stress_insights (insight_type);
+"""
+
+
+STRESS_DAILY_STATS_VIEW_SQL = """
+CREATE MATERIALIZED VIEW IF NOT EXISTS stress_daily_stats
+WITH (timescaledb.continuous) AS
+SELECT
+    time_bucket('1 day', created_at) AS day,
+    user_id,
+    AVG(score)::numeric AS avg_score,
+    COUNT(*) AS assessments,
+    COUNT(DISTINCT sas.stressor_id) AS distinct_stressors,
+    COUNT(*) FILTER (WHERE score >= 4) AS high_events,
+    COUNT(*) FILTER (WHERE score >= 5) AS extreme_events
+FROM stress_assessments sa
+LEFT JOIN stress_assessment_stressors sas ON sas.assessment_id = sa.id
+GROUP BY day, user_id;
+"""
+
+
 
 
 
@@ -476,7 +634,6 @@ async def init_db() -> None:
         await conn.execute(BEHAVIORAL_EVENTS_SQL)
         await conn.execute(CONVERSATION_BEHAVIOR_SQL)
 
-
         # Sleep tracking tables
         await conn.execute(SLEEP_SCHEDULE_TABLE_SQL)
         await conn.execute(SLEEP_SCHEDULE_INDEX_SQL)
@@ -496,6 +653,27 @@ async def init_db() -> None:
 
         await conn.execute(SLEEP_EVENTS_TABLE_SQL)
         await conn.execute(SLEEP_EVENTS_INDEX_SQL)
+
+        # Stress management tables
+        await conn.execute(STRESS_EXPRESSION_SESSIONS_TABLE_SQL)
+        await conn.execute(STRESS_EXPRESSION_SESSIONS_INDEX_SQL)
+
+        await conn.execute(STRESS_STRESSORS_TABLE_SQL)
+
+        await conn.execute(STRESS_ASSESSMENTS_TABLE_SQL)
+        await conn.execute(STRESS_ASSESSMENTS_INDEX_SQL)
+
+        await conn.execute(STRESS_ASSESSMENT_STRESSORS_TABLE_SQL)
+        await conn.execute(STRESS_ASSESSMENT_STRESSORS_INDEX_SQL)
+
+        await conn.execute(STRESS_EXPRESSION_METRICS_TABLE_SQL)
+        await conn.execute(STRESS_EXPRESSION_METRICS_INDEX_SQL)
+        await conn.execute(STRESS_EXPRESSION_METRICS_USER_INDEX_SQL)
+
+        await conn.execute(STRESS_INSIGHTS_TABLE_SQL)
+        await conn.execute(STRESS_INSIGHTS_INDEX_SQL)
+        await conn.execute(STRESS_INSIGHTS_STATUS_INDEX_SQL)
+        await conn.execute(STRESS_INSIGHTS_TYPE_INDEX_SQL)
         
         
 
@@ -513,6 +691,12 @@ async def init_db() -> None:
             )
             await conn.execute(
                 "SELECT create_hypertable('mindfulness_session_events','occurred_at', chunk_time_interval => INTERVAL '7 days', partitioning_column => 'user_id', number_partitions => 8, if_not_exists => TRUE);"
+            )
+            await conn.execute(
+                "SELECT create_hypertable('stress_assessments','created_at', chunk_time_interval => INTERVAL '7 days', partitioning_column => 'user_id', number_partitions => 8, if_not_exists => TRUE);"
+            )
+            await conn.execute(
+                "SELECT create_hypertable('stress_expression_metrics','captured_at', chunk_time_interval => INTERVAL '7 days', partitioning_column => 'user_id', number_partitions => 8, if_not_exists => TRUE);"
             )
         except Exception:
             # Extension may not be available / insufficient privs
@@ -576,6 +760,7 @@ async def init_db() -> None:
                 """
             )
             await conn.execute(MINDFUL_DAILY_MINUTES_VIEW_SQL)
+            await conn.execute(STRESS_DAILY_STATS_VIEW_SQL)
         except Exception:
             try:
                 await conn.execute(
@@ -593,6 +778,17 @@ async def init_db() -> None:
                     GROUP BY day, user_id, exercise_type;
                     """
                 )
+                await conn.execute(
+                    """
+                    CREATE MATERIALIZED VIEW IF NOT EXISTS stress_daily_stats AS
+                    SELECT date_trunc('day', created_at) AS day,
+                           user_id,
+                           AVG(score)::numeric AS avg_score,
+                           COUNT(*) AS assessments
+                    FROM stress_assessments
+                    GROUP BY day, user_id;
+                    """
+                )
             except Exception:
                 pass
 
@@ -608,6 +804,10 @@ async def init_db() -> None:
             await conn.execute("ALTER TABLE mindfulness_session_events SET (timescaledb.compress, timescaledb.compress_segmentby='user_id');")
             await conn.execute("SELECT add_compression_policy('mindfulness_sessions', INTERVAL '30 days');")
             await conn.execute("SELECT add_compression_policy('mindfulness_session_events', INTERVAL '30 days');")
+            await conn.execute("ALTER TABLE stress_assessments SET (timescaledb.compress, timescaledb.compress_segmentby='user_id');")
+            await conn.execute("ALTER TABLE stress_expression_metrics SET (timescaledb.compress, timescaledb.compress_segmentby='user_id');")
+            await conn.execute("SELECT add_compression_policy('stress_assessments', INTERVAL '60 days');")
+            await conn.execute("SELECT add_compression_policy('stress_expression_metrics', INTERVAL '30 days');")
         except Exception:
             pass
 
@@ -617,6 +817,7 @@ async def init_db() -> None:
             await conn.execute("SELECT add_continuous_aggregate_policy('daily_crisis_counts', start_offset => INTERVAL '30 days', end_offset => INTERVAL '1 hour', schedule_interval => INTERVAL '1 hour');")
             await conn.execute("SELECT add_continuous_aggregate_policy('daily_intent_counts', start_offset => INTERVAL '30 days', end_offset => INTERVAL '1 hour', schedule_interval => INTERVAL '2 hours');")
             await conn.execute("SELECT add_continuous_aggregate_policy('mindful_daily_minutes', start_offset => INTERVAL '30 days', end_offset => INTERVAL '1 hour', schedule_interval => INTERVAL '2 hours');")
+            await conn.execute("SELECT add_continuous_aggregate_policy('stress_daily_stats', start_offset => INTERVAL '30 days', end_offset => INTERVAL '1 hour', schedule_interval => INTERVAL '2 hours');")
         except Exception:
             pass
 
