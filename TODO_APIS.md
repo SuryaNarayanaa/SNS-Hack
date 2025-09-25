@@ -653,24 +653,9 @@ All endpoints require Bearer auth.
 
 | Endpoint | Method | Purpose |
 | -------- | ------ | ------- |
-| /stress/stressors/catalog | GET | List selectable stressors |
-| /stress/assessment | POST | Submit a new stress assessment (with optional stressors & expression session id) |
-| /stress/assessments | GET | List assessments (pagination + filters) |
-| /stress/assessments/recent | GET | Latest N assessments (quick gauge history) |
-| /stress/assessments/{id} | GET | Detailed assessment + stressors + expression summary |
-| /stress/summary/overview | GET | Current score + trend + top stressors |
-| /stress/stats/daily | GET | Daily aggregated scores (line) |
-| /stress/stats/stressors | GET | Aggregated impact per stressor (bubble sizes) |
-| /stress/expression/start | POST | Begin expression/biometric capture session |
-| /stress/expression/{id}/metrics | PATCH | Append metrics snapshot (batch or single) |
-| /stress/expression/{id}/complete | PATCH | Finish session + return aggregated metrics |
-| /stress/expression/{id} | GET | Session detail with optional metrics (paginate) |
-| /stress/insights | GET | List insights (filter severity/status/range) |
-| /stress/insights/{id} | PATCH | Update status (ack/dismiss) |
-
-Optional convenience:
-| /stress/assessments/trend | GET | Rolling averages & slopes |
-| /stress/expression/recent | GET | Last completed expression session |
+| /stress/stressors/catalog | GET | List selectable stressors for the picker screen |
+| /stress/assessment | POST | Submit a new stress assessment with chosen stressors |
+| /stress/summary/overview | GET | Fetch current score + top stressor stats for the dashboard card |
 
 ---
 
@@ -703,113 +688,30 @@ Response:
 { "id": 1201, "score": 3, "qualitative_label": "elevated", "created_at": "...", "stressors": [ {"slug":"loneliness"}, {"slug":"work"} ] }
 ```
 
-#### GET /stress/assessments
-Query params:
-* limit (default 30, max 100)
-* offset (default 0)
-* from (ISO date) optional
-* to (ISO date) optional
-* min_score / max_score
-* stressor (slug) – filter assessments containing that stressor
-Response:
-```
-{ "items": [ {"id":1201,"score":3,"qualitative_label":"elevated","created_at":"..."} ], "next_offset": 30 }
-```
-
-#### GET /stress/assessments/recent
-Query: limit=10 (max 50)
-Returns chronological descending limited subset for small sparkline.
-
-#### GET /stress/assessments/{id}
-Response includes assessment, stressors (with impact_score/impact_level if available), and linked expression_session summary.
-
 #### GET /stress/summary/overview
 Purpose: Single dashboard call for current level card + bubble stats.
 Query: range=30d (7d|14d|30d|90d)
 Response example:
-```
-{
-	"current": { "score": 3, "qualitative_label": "elevated", "created_at": "..." },
-	"trend": { "direction": "up", "slope": 0.12, "delta_vs_prev_period": +0.4 },
-	"top_stressors": [ { "slug":"loneliness", "avg_score": 3.8, "impact_level":"very_high" }, { "slug":"work", "avg_score": 2.9 } ],
-	"distribution": { "calm": 5, "normal": 12, "elevated": 8, "high": 3, "extreme": 1 }
-}
-```
-
-#### GET /stress/stats/daily
-Query: days=30 (1–180)
-Response: `{ "items": [ { "day": "2025-09-01", "avg_score": 2.6, "assessments": 3 }, ... ] }`
-Uses `stress_daily_stats` view if present; fallback raw aggregation:
-```
-SELECT date(created_at) AS day,
-			 AVG(score)::float AS avg_score,
-			 COUNT(*) AS assessments
-FROM stress_assessments
-WHERE user_id=$1 AND created_at >= now() - $2::interval
-GROUP BY 1 ORDER BY 1;
-```
-
-#### GET /stress/stats/stressors
-Query: days=30, limit=10
-Response:
-```
-{ "items": [ { "slug":"loneliness", "assessments": 14, "avg_score": 3.8, "avg_impact_score": 0.72 }, ... ] }
-```
-SQL sketch (join & aggregate):
-```
-SELECT s.slug,
-			 COUNT(DISTINCT a.id) AS assessments,
-			 AVG(a.score)::float AS avg_score,
-			 AVG(sas.impact_score)::float AS avg_impact_score
-FROM stress_assessments a
-JOIN stress_assessment_stressors sas ON sas.assessment_id=a.id
-JOIN stress_stressors s ON s.id=sas.stressor_id
-WHERE a.user_id=$1 AND a.created_at >= now() - $2::interval
-GROUP BY s.slug
-ORDER BY avg_impact_score DESC NULLS LAST, avg_score DESC
-LIMIT $3;
-```
-
-#### POST /stress/expression/start
-Body:
-```
-{ "capture_type": "camera", "metadata": {"resolution":"720p"} }
-```
-Response: `{ "id": 55, "started_at": "...", "status": "in_progress" }`
-
-#### PATCH /stress/expression/{id}/metrics
-Body (single or batch):
-```
-{ "heart_rate_bpm": 68, "systolic_bp": 134, "diastolic_bp": 82, "expression_primary": "neutral", "expression_confidence": 0.91, "stress_inference": 47.2 }
-```
-Accept array variant: `{ "items": [ {...}, {...} ] }`
-Response: `{ "status": "ok", "accepted": N }`
-
-#### PATCH /stress/expression/{id}/complete
-Body (optional): `{ "metadata": {"quality":"good_lighting"} }`
-Server sets completed_at, aggregates average heart_rate, mean stress_inference etc.
-Response:
-```
-{ "id":55, "completed_at":"...", "avg_heart_rate":67.4, "avg_stress_inference":45.1, "samples": 42, "status":"completed" }
-```
-
-#### GET /stress/expression/{id}
-Query: include_metrics=false|true (default false), metrics_limit=100, metrics_offset=0
-Response: base session plus optional metrics page.
-
-#### GET /stress/insights
-Query: status (list), type (list), days=60, limit, offset.
-Response: `{ "items": [ { "id":9, "insight_type":"trend_increase", "severity":"moderate", "title":"Stress trending up evenings", "status":"new" } ] }`
-
-#### PATCH /stress/insights/{id}
-Body: `{ "status": "acknowledged" }` – returns updated record.
-
 ---
 
-### Scoring & Label Logic
-Base scale: integer score 0–5 (0 calm → 5 extreme) or 1–5. Choose ONE; mapping below assumes 0–5.
-```
-0 calm
+	"current": {
+		"score": 3,
+		"qualitative_label": "elevated",
+		"created_at": "...",
+		"stressor_highlight": {
+			"slug": "loneliness",
+			"impact_level": "very_high",
+			"impact_score": 0.82
+		}
+	},
+	"top_stressors": [
+		{ "slug":"loneliness", "avg_score": 3.8, "impact_level":"very_high" },
+		{ "slug":"work", "avg_score": 2.9 }
+	],
+	"recent_scores": [
+		{ "day": "2025-09-01", "score": 3 },
+		{ "day": "2025-08-31", "score": 2 }
+	]
 1 normal
 2 elevated (mild)
 3 elevated (moderate)
