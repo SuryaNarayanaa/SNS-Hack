@@ -9,6 +9,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import MessagesState, START, StateGraph
 from langgraph.prebuilt import InjectedState, create_react_agent
 from langgraph.types import Command
+from dotenv import load_dotenv
+load_dotenv()
 
 from subagents.act_agent import act_agent
 from subagents.ant_detection_sub_agent import ant_detection_sub_agent
@@ -16,7 +18,10 @@ from subagents.cbt_agent import cbt_agent
 from subagents.dbt_agent import dbt_agent
 from subagents.fallback_agent import fallback_agent
 from subagents.memory_module import memory_module
-from utils import DEFAULT_USER_CONTEXT
+
+os.environ['GRPC_VERBOSITY'] = 'ERROR'
+os.environ['GLOG_minloglevel'] = '2'
+
 
 load_dotenv()
 def create_handoff_tool(*, agent_name: str, description: str | None = None):
@@ -73,14 +78,7 @@ assign_to_ant_detection_sub_agent = create_handoff_tool(
     description="Assign tasks for detecting Automatic Negative Thoughts to this agent.",
 )
 
-MODEL_NAME = os.getenv("GOOGLE_MODEL_NAME", "gemini-1.5-flash")
-
-if not os.getenv("GOOGLE_API_KEY"):
-    raise EnvironmentError(
-        "GOOGLE_API_KEY environment variable must be set before importing the agents."
-    )
-
-router_llm = ChatGoogleGenerativeAI(model=MODEL_NAME)
+router_llm = ChatGoogleGenerativeAI(model='gemini-1.5-flash')
 
 
 # Create supervisor agent
@@ -104,7 +102,7 @@ supervisor_agent = create_react_agent(
 # Define the multi-agent supervisor graph
 supervisor = (
     StateGraph(MessagesState)
-    # NOTE: `destinations` is only needed for visualization and doesn't affect runtime behavior
+    # NOTE: destinations is only needed for visualization and doesn't affect runtime behavior
     .add_node(supervisor_agent, destinations=("cbt_agent", "dbt_agent", "act_agent", "fallback_agent", "memory_module", "ant_detection_sub_agent"))
     .add_node(cbt_agent)
     .add_node(dbt_agent)
@@ -124,32 +122,6 @@ supervisor = (
 )
 
 
-def invoke_supervisor(
-    user_message: str,
-    *,
-    user_context: str | None = None,
-    extra_state: Mapping[str, object] | None = None,
-):
-    """Convenience helper to interact with the supervisor graph."""
+result = supervisor.invoke({"messages": [HumanMessage(content="I have been feeling very anxious lately and it's affecting my daily life. Can you help me?")]})
 
-    state: MutableMapping[str, Any] = {
-        "messages": [HumanMessage(content=user_message)],
-    }
-
-    if user_context:
-        state["user_context"] = user_context
-    else:
-        state.setdefault("user_context", DEFAULT_USER_CONTEXT)
-
-    if extra_state:
-        state.update(extra_state)
-
-    return supervisor.invoke(cast(MessagesState, state))
-
-
-if __name__ == "__main__":
-    result = invoke_supervisor(
-        "I feel anxious about my upcoming presentation. Can you help me manage my anxiety?",
-        user_context="Preparing for a quarterly review presentation to leadership.",
-    )
-    result["messages"][-1].pretty_print()
+print(result)

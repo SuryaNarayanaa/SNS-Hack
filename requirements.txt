@@ -1,0 +1,11 @@
+langchain
+langgraph
+beautifulsoup4
+lxml 
+grandalf
+langchain-google-genai
+python-dotenv
+fastapi
+uvicorn[standard]
+pydantic
+httpx
