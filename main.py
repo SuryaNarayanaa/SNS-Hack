@@ -33,12 +33,14 @@ from db import (
 )
 from routes.sleep_routes import router as sleep_router
 from routes.stress_routes import router as stress_router
+from routes.mood_routes import router as mood_router
 
 app = FastAPI(title="Neptune - Mental Healthcare App", version="0.2.0")
 bearer_scheme = HTTPBearer(auto_error=False)
 
 app.include_router(sleep_router)
 app.include_router(stress_router)
+app.include_router(mood_router)
 
 
 from pydantic import EmailStr
