@@ -5,7 +5,7 @@ applyTo: "**/*.ts,**/*.tsx,**/*.js,**/*.jsx"
 # Convex guidelines
 ## Function guidelines
 ### New function syntax
-- ALWAYS use the new function syntax for Convex functions. For example:
+- ALWAYS use the new function syntax for Convexww functions. For example:
 ```typescript
 import { query } from "./_generated/server";
 import { v } from "convex/values";
