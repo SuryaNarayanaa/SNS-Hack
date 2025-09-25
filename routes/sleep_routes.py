@@ -2,116 +2,26 @@
 
 from __future__ import annotations
 
-from datetime import datetime, time
-from typing import Any, Mapping
+from typing import Any
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, Field, model_validator, field_validator
 
 from auth import get_user_by_token
-from db import db_session
+from schemas.sleep import (
+	SleepActivateRequest,
+	SleepScheduleCreate,
+	SleepScheduleUpdate,
+	SleepSessionStart,
+	SleepStagePatch,
+	SleepSessionComplete,
+)
+from services import sleep_service
 
 
 router = APIRouter(prefix="/sleep", tags=["sleep"])
 bearer_scheme = HTTPBearer(auto_error=False)
-
-
-class SleepScheduleBase(BaseModel):
-	bedtime_local: time = Field(..., description="Target sleep start time in local clock")
-	wake_time_local: time = Field(..., description="Target wake time in local clock")
-	timezone: str = Field(..., description="IANA timezone identifier")
-	active_days: list[int] = Field(..., min_length=1, max_length=7, description="Days of week 0=Mon .. 6=Sun")
-	target_duration_minutes: int | None = Field(None, ge=1, description="Desired sleep duration in minutes")
-	auto_set_alarm: bool = Field(default=False)
-	show_stats_auto: bool = Field(default=True)
-	metadata: dict[str, Any] | None = Field(default=None)
-
-	@field_validator("active_days")
-	@classmethod
-	def validate_active_days(cls, value: list[int]) -> list[int]:
-		if any(day < 0 or day > 6 for day in value):
-			raise ValueError("active_days must contain integers between 0 and 6")
-		seen: set[int] = set()
-		ordered: list[int] = []
-		for day in value:
-			if day not in seen:
-				ordered.append(day)
-				seen.add(day)
-		return ordered
-
-
-class SleepScheduleCreate(SleepScheduleBase):
-	"""Payload for creating a new sleep schedule."""
-
-
-class SleepScheduleUpdate(BaseModel):
-	bedtime_local: time | None = None
-	wake_time_local: time | None = None
-	timezone: str | None = None
-	active_days: list[int] | None = None
-	target_duration_minutes: int | None = Field(default=None, ge=1)
-	auto_set_alarm: bool | None = None
-	show_stats_auto: bool | None = None
-	is_active: bool | None = None
-	metadata: dict[str, Any] | None = None
-
-	@field_validator("active_days")
-	@classmethod
-	def validate_active_days(cls, value: list[int] | None) -> list[int] | None:
-		if value is None:
-			return value
-		if any(day < 0 or day > 6 for day in value):
-			raise ValueError("active_days must contain integers between 0 and 6")
-		seen: set[int] = set()
-		ordered: list[int] = []
-		for day in value:
-			if day not in seen:
-				ordered.append(day)
-				seen.add(day)
-		return ordered
-
-	@model_validator(mode="after")
-	def ensure_fields_present(self) -> "SleepScheduleUpdate":
-		if not any(
-			getattr(self, attr) is not None
-			for attr in (
-				"bedtime_local",
-				"wake_time_local",
-				"timezone",
-				"active_days",
-				"target_duration_minutes",
-				"auto_set_alarm",
-				"show_stats_auto",
-				"is_active",
-				"metadata",
-			)
-		):
-			raise ValueError("At least one field must be provided for update")
-		return self
-
-
-def _time_to_string(value: time | None) -> str | None:
-	if value is None:
-		return None
-	return value.strftime("%H:%M:%S")
-
-
-def _serialize_schedule(record: Mapping[str, Any]) -> dict[str, Any]:
-	return {
-		"id": record["id"],
-		"bedtime_local": _time_to_string(record.get("bedtime_local")),
-		"wake_time_local": _time_to_string(record.get("wake_time_local")),
-		"timezone": record.get("timezone"),
-		"active_days": list(record.get("active_days") or []),
-		"target_duration_minutes": record.get("target_duration_minutes"),
-		"auto_set_alarm": record.get("auto_set_alarm"),
-		"show_stats_auto": record.get("show_stats_auto"),
-		"is_active": record.get("is_active"),
-		"metadata": record.get("metadata"),
-		"created_at": record.get("created_at").isoformat() if record.get("created_at") else None,
-		"updated_at": record.get("updated_at").isoformat() if record.get("updated_at") else None,
-	}
 
 
 async def _get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)) -> dict[str, Any]:
@@ -128,19 +38,8 @@ async def _get_current_user(credentials: HTTPAuthorizationCredentials | None = D
 
 @router.get("/schedule")
 async def get_active_schedule(current_user: dict[str, Any] = Depends(_get_current_user)) -> dict[str, Any]:
-	async with db_session() as conn:
-		row = await conn.fetchrow(
-			"""
-			SELECT id, bedtime_local, wake_time_local, timezone, active_days, target_duration_minutes,
-				   auto_set_alarm, show_stats_auto, is_active, metadata, created_at, updated_at
-			FROM sleep_schedule
-			WHERE user_id = $1 AND is_active = TRUE
-			ORDER BY updated_at DESC
-			LIMIT 1
-			""",
-			current_user["id"],
-		)
-	return {"schedule": _serialize_schedule(row) if row else None}
+	schedule = await sleep_service.get_active_schedule(current_user["id"])
+	return {"schedule": schedule}
 
 
 @router.post("/schedule", status_code=status.HTTP_201_CREATED)
@@ -148,33 +47,8 @@ async def create_schedule(
 	payload: SleepScheduleCreate,
 	current_user: dict[str, Any] = Depends(_get_current_user),
 ) -> dict[str, Any]:
-	async with db_session() as conn:
-		await conn.execute(
-			"UPDATE sleep_schedule SET is_active = FALSE WHERE user_id = $1",
-			current_user["id"],
-		)
-		row = await conn.fetchrow(
-			"""
-			INSERT INTO sleep_schedule (
-				user_id, bedtime_local, wake_time_local, timezone, active_days,
-				target_duration_minutes, auto_set_alarm, show_stats_auto, is_active, metadata
-			) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE,$9)
-			RETURNING id, bedtime_local, wake_time_local, timezone, active_days,
-					  target_duration_minutes, auto_set_alarm, show_stats_auto, is_active,
-					  metadata, created_at, updated_at
-			""",
-			current_user["id"],
-			payload.bedtime_local,
-			payload.wake_time_local,
-			payload.timezone,
-			payload.active_days,
-			payload.target_duration_minutes,
-			payload.auto_set_alarm,
-			payload.show_stats_auto,
-			payload.metadata,
-		)
-
-	return {"schedule": _serialize_schedule(row)}
+	schedule = await sleep_service.create_schedule(current_user["id"], payload.model_dump())
+	return {"schedule": schedule}
 
 
 @router.patch("/schedule/{schedule_id}")
@@ -184,49 +58,103 @@ async def update_schedule(
 	current_user: dict[str, Any] = Depends(_get_current_user),
 ) -> dict[str, Any]:
 	updates = payload.model_dump(exclude_none=True)
+	schedule = await sleep_service.update_schedule(current_user["id"], schedule_id, updates)
+	if not schedule:
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+	return {"schedule": schedule}
 
-	async with db_session() as conn:
-		assignments: list[str] = []
-		params: list[Any] = []
-		for column in (
-			"bedtime_local",
-			"wake_time_local",
-			"timezone",
-			"active_days",
-			"target_duration_minutes",
-			"auto_set_alarm",
-			"show_stats_auto",
-			"is_active",
-			"metadata",
-		):
-			if column in updates:
-				assignments.append(f"{column} = ${len(params) + 1}")
-				params.append(updates[column])
 
-		assignments.append("updated_at = now()")
-		params.extend([current_user["id"], schedule_id])
+@router.patch("/schedule/{schedule_id}/activate")
+async def activate_schedule(
+	schedule_id: int,
+	payload: SleepActivateRequest,
+	current_user: dict[str, Any] = Depends(_get_current_user),
+) -> dict[str, Any]:
+	if not payload.is_active:
+		raise HTTPException(status_code=400, detail="is_active must be true to activate")
+	schedule = await sleep_service.update_schedule(current_user["id"], schedule_id, {"is_active": True})
+	if not schedule:
+		raise HTTPException(status_code=404, detail="Schedule not found")
+	return {"schedule": schedule}
 
-		row = await conn.fetchrow(
-			f"""
-			UPDATE sleep_schedule
-			SET {', '.join(assignments)}
-			WHERE user_id = ${len(params) - 1} AND id = ${len(params)}
-			RETURNING id, bedtime_local, wake_time_local, timezone, active_days,
-					  target_duration_minutes, auto_set_alarm, show_stats_auto, is_active,
-					  metadata, created_at, updated_at
-			""",
-			*params,
-		)
 
-		if row is None:
-			raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found")
+# --- Sessions ---
 
-		if updates.get("is_active"):
-			await conn.execute(
-				"UPDATE sleep_schedule SET is_active = FALSE WHERE user_id = $1 AND id <> $2",
-				current_user["id"],
-				schedule_id,
-			)
+@router.post("/sessions/start")
+async def start_session(
+	payload: SleepSessionStart,
+	current_user: dict[str, Any] = Depends(_get_current_user),
+):
+	result = await sleep_service.start_session(current_user["id"], payload.model_dump(exclude_none=True))
+	return result
 
-	return {"schedule": _serialize_schedule(row)}
+
+@router.patch("/sessions/{session_id}/stage")
+async def patch_stage(
+	session_id: int,
+	payload: SleepStagePatch,
+	current_user: dict[str, Any] = Depends(_get_current_user),
+):
+	try:
+		await sleep_service.append_stage(current_user["id"], session_id, payload.model_dump())
+	except ValueError:
+		raise HTTPException(status_code=404, detail="Session not found")
+	return {"status": "ok"}
+
+
+@router.patch("/sessions/{session_id}/complete")
+async def patch_complete(
+	session_id: int,
+	payload: SleepSessionComplete,
+	current_user: dict[str, Any] = Depends(_get_current_user),
+):
+	try:
+		result = await sleep_service.complete_session(current_user["id"], session_id, payload.model_dump(exclude_none=True))
+	except ValueError:
+		raise HTTPException(status_code=404, detail="Session not found")
+	return result
+
+
+@router.get("/sessions/{session_id}")
+async def get_session(
+	session_id: int,
+	include_stages: bool = True,
+	current_user: dict[str, Any] = Depends(_get_current_user),
+):
+	result = await sleep_service.get_session_detail(current_user["id"], session_id, include_stages=include_stages)
+	if not result:
+		raise HTTPException(status_code=404, detail="Session not found")
+	return result
+
+
+@router.get("/sessions")
+async def list_sessions(
+	limit: int = Query(20, ge=1, le=100),
+	offset: int = Query(0, ge=0),
+	from_: datetime | None = Query(None, alias="from"),
+	to: datetime | None = None,
+	min_duration: float | None = None,
+	current_user: dict[str, Any] = Depends(_get_current_user),
+):
+	filters: dict[str, Any] = {}
+	if from_:
+		filters["from"] = from_
+	if to:
+		filters["to"] = to
+	if min_duration is not None:
+		filters["min_duration"] = min_duration
+	return await sleep_service.list_sessions(current_user["id"], limit=limit, offset=offset, filters=filters)
+
+
+@router.get("/sessions/calendar")
+async def sessions_calendar(
+	month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"),
+	current_user: dict[str, Any] = Depends(_get_current_user),
+):
+	return await sleep_service.get_calendar(current_user["id"], month)
+
+
+@router.get("/sessions/active")
+async def get_active_session(current_user: dict[str, Any] = Depends(_get_current_user)):
+	return {"session": await sleep_service.get_active_session(current_user["id"]) }
 
