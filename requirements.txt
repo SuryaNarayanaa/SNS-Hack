@@ -5,6 +5,7 @@ lxml
 grandalf
 langchain-google-genai
 python-dotenv
+asyncpg
 fastapi
 uvicorn[standard]
 pydantic
