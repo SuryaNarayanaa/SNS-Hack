@@ -1,5 +1,26 @@
-from langchain_core.messages import AIMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import ChatPromptTemplate
+
+from prompts import MEMORY_MODULE_PROMPT
+from utils import (
+    get_full_conversation_history,
+    get_last_user_message,
+    get_recent_conversation_history,
+    get_user_context,
+)
+
+
+_prompt = ChatPromptTemplate.from_template(MEMORY_MODULE_PROMPT)
+_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+
 
 def memory_module(state):
-    response = "This is a dummy Memory Module. It handles memory-related operations."
-    return {"messages": state["messages"] + [AIMessage(content=response)]}
+    messages = state.get("messages", [])
+    formatted_messages = _prompt.format_messages(
+        user_context=get_user_context(state),
+        full_conversation_history=get_full_conversation_history(messages),
+        recent_conversation_history=get_recent_conversation_history(messages),
+        user_message=get_last_user_message(messages),
+    )
+    ai_message = _llm.invoke(formatted_messages)
+    return {"messages": messages + [ai_message]}
