@@ -6,7 +6,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, List, Tuple
 
-from assessments import AssessmentType, check_due_assessments
+from .assessments import AssessmentType, check_due_assessments
 from db import db_session
 
 

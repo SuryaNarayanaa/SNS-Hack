@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-import assessment_triggers
-from assessments import AssessmentType
+from agent.utils import assessment_triggers
+from agent.utils.assessments import AssessmentType
 
 from tests.stubs import StubConnection
 
