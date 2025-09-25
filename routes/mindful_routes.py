@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, Field, validator
 
 from auth import get_user_by_token
 from db import (
@@ -26,15 +24,19 @@ from db import (
 	update_mindfulness_session_progress,
 )
 
-from schemas.mindful_schemas import *
+from schemas.mindful_schemas import (
+	VALID_EXERCISE_TYPES,
+	MindfulnessGoalOut,
+	MindfulnessSoundscapeOut,
+	SessionCompleteRequest,
+	SessionCreateRequest,
+	SessionEventRequest,
+	SessionProgressRequest,
+)
 
 router = APIRouter(prefix="/mindful", tags=["Mindful Hours"])
 
 bearer_scheme = HTTPBearer(auto_error=False)
-
-VALID_EXERCISE_TYPES = {"breathing", "mindfulness", "relax", "sleep"}
-
-
 
 async def _get_current_user(
 	credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
@@ -158,6 +160,14 @@ async def list_mindfulness_sessions_endpoint(
 	return {"items": items, "next_offset": next_offset}
 
 
+@router.get("/sessions/active")
+async def get_active_mindfulness_session_endpoint(
+	current_user: dict[str, Any] = Depends(_get_current_user),
+) -> dict[str, Any]:
+	session = await get_active_mindfulness_session(current_user["id"])
+	return {"session": _serialize_session(session) if session else None}
+
+
 @router.get("/sessions/{session_id}")
 async def get_mindfulness_session_detail(
 	session_id: int,
@@ -260,15 +270,6 @@ async def get_mindfulness_stats_daily(
 		raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid exercise_type filter")
 	items = await get_mindful_daily_minutes(current_user["id"], days=days, exercise_type=exercise_type)
 	return {"items": jsonable_encoder(items)}
-
-
-@router.get("/sessions/active")
-async def get_active_mindfulness_session_endpoint(
-	current_user: dict[str, Any] = Depends(_get_current_user),
-) -> dict[str, Any]:
-	session = await get_active_mindfulness_session(current_user["id"])
-	return {"session": _serialize_session(session) if session else None}
-
 
 def _auto_attach_router() -> None:
 	try:

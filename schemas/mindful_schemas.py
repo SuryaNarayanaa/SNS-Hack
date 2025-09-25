@@ -4,6 +4,9 @@ from datetime import datetime
 
 VALID_EXERCISE_TYPES = {"breathing", "mindfulness", "relax", "sleep"}
 
+
+from pydantic import BaseModel, Field, validator
+
 class MindfulnessGoalOut(BaseModel):
 	code: str
 	title: str

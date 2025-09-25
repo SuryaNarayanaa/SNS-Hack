@@ -102,17 +102,17 @@ async def patch_stage(
 	return {"status": "ok"}
 
 
-@router.patch("/sessions/{session_id}/complete")
-async def patch_complete(
-	session_id: int,
-	payload: SleepSessionComplete,
+@router.get("/sessions/calendar")
+async def sessions_calendar(
+	month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"),
 	current_user: dict[str, Any] = Depends(_get_current_user),
 ):
-	try:
-		result = await sleep_service.complete_session(current_user["id"], session_id, payload.model_dump(exclude_none=True))
-	except ValueError:
-		raise HTTPException(status_code=404, detail="Session not found")
-	return result
+	return await sleep_service.get_calendar(current_user["id"], month)
+
+
+@router.get("/sessions/active")
+async def get_active_session(current_user: dict[str, Any] = Depends(_get_current_user)):
+	return {"session": await sleep_service.get_active_session(current_user["id"]) }
 
 
 @router.get("/sessions/{session_id}")
@@ -146,15 +146,15 @@ async def list_sessions(
 	return await sleep_service.list_sessions(current_user["id"], limit=limit, offset=offset, filters=filters)
 
 
-@router.get("/sessions/calendar")
-async def sessions_calendar(
-	month: str | None = Query(None, pattern=r"^\d{4}-\d{2}$"),
+@router.patch("/sessions/{session_id}/complete")
+async def patch_complete(
+	session_id: int,
+	payload: SleepSessionComplete,
 	current_user: dict[str, Any] = Depends(_get_current_user),
 ):
-	return await sleep_service.get_calendar(current_user["id"], month)
-
-
-@router.get("/sessions/active")
-async def get_active_session(current_user: dict[str, Any] = Depends(_get_current_user)):
-	return {"session": await sleep_service.get_active_session(current_user["id"]) }
+	try:
+		result = await sleep_service.complete_session(current_user["id"], session_id, payload.model_dump(exclude_none=True))
+	except ValueError:
+		raise HTTPException(status_code=404, detail="Session not found")
+	return result
 

@@ -321,6 +321,94 @@ GROUP BY day, user_id;
 """
 
 
+MOOD_ENTRIES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS mood_entries (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    mood_value SMALLINT NOT NULL,
+    mood_label TEXT NOT NULL,
+    note TEXT NULL,
+    improvement_flag BOOLEAN NULL,
+    metadata JSONB NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+"""
+
+
+MOOD_ENTRIES_USER_CREATED_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_mood_entries_user_created
+    ON mood_entries (user_id, created_at DESC);
+"""
+
+
+MOOD_ENTRIES_VALUE_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_mood_entries_user_value
+    ON mood_entries (user_id, mood_value);
+"""
+
+
+MOOD_ENTRIES_IMPROVEMENT_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_mood_entries_improvement
+    ON mood_entries (user_id)
+    WHERE improvement_flag IS TRUE;
+"""
+
+
+MOOD_SUGGESTIONS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS mood_suggestions (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    suggestion_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NULL,
+    tags TEXT[] NULL,
+    priority SMALLINT NOT NULL DEFAULT 3,
+    status TEXT NOT NULL DEFAULT 'new',
+    resolved_at TIMESTAMPTZ NULL,
+    metadata JSONB NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+"""
+
+
+MOOD_SUGGESTIONS_USER_STATUS_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_mood_suggestions_user_status
+    ON mood_suggestions (user_id, status);
+"""
+
+
+MOOD_SUGGESTIONS_CREATED_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_mood_suggestions_user_created
+    ON mood_suggestions (user_id, created_at DESC);
+"""
+
+
+MOOD_SUGGESTIONS_STATUS_PRIORITY_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_mood_suggestions_status_priority
+    ON mood_suggestions (status, priority DESC);
+"""
+
+
+MOOD_DAILY_STATS_VIEW_SQL = """
+CREATE MATERIALIZED VIEW IF NOT EXISTS mood_daily_stats
+WITH (timescaledb.continuous) AS
+SELECT time_bucket('1 day', created_at) AS day,
+       user_id,
+       AVG(mood_value)::float AS avg_mood_value,
+       COUNT(*) AS entries_count,
+       MIN(mood_value) AS min_mood_value,
+       MAX(mood_value) AS max_mood_value,
+       MAX(mood_value) - MIN(mood_value) AS mood_swing,
+       (ARRAY_AGG(mood_value ORDER BY created_at ASC))[1] AS first_mood_value,
+       (ARRAY_AGG(mood_value ORDER BY created_at DESC))[1] AS last_mood_value,
+       COUNT(*) FILTER (WHERE mood_value >= 3) AS positive_entries,
+       COUNT(*) FILTER (WHERE mood_value <= 2) AS negative_entries
+FROM mood_entries
+GROUP BY day, user_id;
+"""
+
+
 STRESS_STRESSORS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS stress_stressors (
     id BIGSERIAL PRIMARY KEY,
@@ -654,6 +742,17 @@ async def init_db() -> None:
         await conn.execute(SLEEP_EVENTS_TABLE_SQL)
         await conn.execute(SLEEP_EVENTS_INDEX_SQL)
 
+        # Mood tracker tables
+        await conn.execute(MOOD_ENTRIES_TABLE_SQL)
+        await conn.execute(MOOD_ENTRIES_USER_CREATED_INDEX_SQL)
+        await conn.execute(MOOD_ENTRIES_VALUE_INDEX_SQL)
+        await conn.execute(MOOD_ENTRIES_IMPROVEMENT_INDEX_SQL)
+
+        await conn.execute(MOOD_SUGGESTIONS_TABLE_SQL)
+        await conn.execute(MOOD_SUGGESTIONS_USER_STATUS_INDEX_SQL)
+        await conn.execute(MOOD_SUGGESTIONS_CREATED_INDEX_SQL)
+        await conn.execute(MOOD_SUGGESTIONS_STATUS_PRIORITY_INDEX_SQL)
+
         # Stress management tables
         await conn.execute(STRESS_EXPRESSION_SESSIONS_TABLE_SQL)
         await conn.execute(STRESS_EXPRESSION_SESSIONS_INDEX_SQL)
@@ -693,6 +792,9 @@ async def init_db() -> None:
                 "SELECT create_hypertable('mindfulness_session_events','occurred_at', chunk_time_interval => INTERVAL '7 days', partitioning_column => 'user_id', number_partitions => 8, if_not_exists => TRUE);"
             )
             await conn.execute(
+                "SELECT create_hypertable('mood_entries','created_at', chunk_time_interval => INTERVAL '14 days', partitioning_column => 'user_id', number_partitions => 8, if_not_exists => TRUE);"
+            )
+            await conn.execute(
                 "SELECT create_hypertable('stress_assessments','created_at', chunk_time_interval => INTERVAL '7 days', partitioning_column => 'user_id', number_partitions => 8, if_not_exists => TRUE);"
             )
             await conn.execute(
@@ -714,6 +816,9 @@ async def init_db() -> None:
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_mindfulness_sessions_end_at ON mindfulness_sessions (end_at);")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_mindfulness_sessions_goal ON mindfulness_sessions (goal_code);")
         await conn.execute("CREATE INDEX IF NOT EXISTS idx_mindfulness_soundscapes_active ON mindfulness_soundscapes (is_active);")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_mood_entries_metadata_gin ON mood_entries USING GIN (metadata);")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_mood_suggestions_tags_gin ON mood_suggestions USING GIN (tags);")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_mood_suggestions_metadata_gin ON mood_suggestions USING GIN (metadata);")
 
         # Continuous aggregates & policies (best effort)
         try:
@@ -761,6 +866,7 @@ async def init_db() -> None:
             )
             await conn.execute(MINDFUL_DAILY_MINUTES_VIEW_SQL)
             await conn.execute(STRESS_DAILY_STATS_VIEW_SQL)
+            await conn.execute(MOOD_DAILY_STATS_VIEW_SQL)
         except Exception:
             try:
                 await conn.execute(
@@ -786,6 +892,24 @@ async def init_db() -> None:
                            AVG(score)::numeric AS avg_score,
                            COUNT(*) AS assessments
                     FROM stress_assessments
+                    GROUP BY day, user_id;
+                    """
+                )
+                await conn.execute(
+                    """
+                    CREATE MATERIALIZED VIEW IF NOT EXISTS mood_daily_stats AS
+                    SELECT date_trunc('day', created_at) AS day,
+                           user_id,
+                           AVG(mood_value)::float AS avg_mood_value,
+                           COUNT(*) AS entries_count,
+                           MIN(mood_value) AS min_mood_value,
+                           MAX(mood_value) AS max_mood_value,
+                           MAX(mood_value) - MIN(mood_value) AS mood_swing,
+                           (ARRAY_AGG(mood_value ORDER BY created_at ASC))[1] AS first_mood_value,
+                           (ARRAY_AGG(mood_value ORDER BY created_at DESC))[1] AS last_mood_value,
+                           COUNT(*) FILTER (WHERE mood_value >= 3) AS positive_entries,
+                           COUNT(*) FILTER (WHERE mood_value <= 2) AS negative_entries
+                    FROM mood_entries
                     GROUP BY day, user_id;
                     """
                 )
@@ -991,9 +1115,12 @@ async def drop_all_tables(confirm: bool = False, drop_users: bool = False) -> No
     if not confirm:
         raise ValueError("Set confirm=True to execute destructive drop_all_tables.")
     statements = [
+        "DROP MATERIALIZED VIEW IF EXISTS mood_daily_stats;",
         "DROP MATERIALIZED VIEW IF EXISTS daily_intent_counts;",
         "DROP MATERIALIZED VIEW IF EXISTS daily_crisis_counts;",
         "DROP MATERIALIZED VIEW IF EXISTS daily_behavior_scores;",
+        "DROP TABLE IF EXISTS mood_suggestions CASCADE;",
+        "DROP TABLE IF EXISTS mood_entries CASCADE;",
         "DROP TABLE IF EXISTS conversation_behavior CASCADE;",
         "DROP TABLE IF EXISTS behavioral_events CASCADE;",
         "DROP TABLE IF EXISTS user_conversations CASCADE;",
