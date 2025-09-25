@@ -147,6 +147,182 @@ WHERE end_at IS NOT NULL
 GROUP BY day, user_id, exercise_type;
 """
 
+SLEEP_SCHEDULE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS sleep_schedule (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    bedtime_local TIME NOT NULL,
+    wake_time_local TIME NOT NULL,
+    timezone TEXT NOT NULL,
+    active_days SMALLINT[] NOT NULL,
+    target_duration_minutes INTEGER,
+    auto_set_alarm BOOLEAN DEFAULT FALSE,
+    show_stats_auto BOOLEAN DEFAULT TRUE,
+    is_active BOOLEAN DEFAULT TRUE,
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+"""
+
+
+SLEEP_SCHEDULE_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_sleep_schedule_user_active
+    ON sleep_schedule (user_id, is_active DESC);
+"""
+
+
+SLEEP_SESSIONS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS sleep_sessions (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    schedule_id BIGINT REFERENCES sleep_schedule(id) ON DELETE SET NULL,
+    start_at TIMESTAMPTZ NOT NULL,
+    end_at TIMESTAMPTZ,
+    in_bed_start_at TIMESTAMPTZ,
+    in_bed_end_at TIMESTAMPTZ,
+    total_duration_minutes NUMERIC(6,2),
+    time_in_bed_minutes NUMERIC(6,2),
+    sleep_efficiency NUMERIC(5,2),
+    latency_minutes NUMERIC(5,2),
+    awakenings_count INTEGER,
+    rem_minutes NUMERIC(6,2),
+    deep_minutes NUMERIC(6,2),
+    light_minutes NUMERIC(6,2),
+    awake_minutes NUMERIC(6,2),
+    heart_rate_avg NUMERIC(5,2),
+    heart_rate_min SMALLINT,
+    heart_rate_max SMALLINT,
+    score_overall NUMERIC(5,2),
+    quality_label TEXT,
+    irregularity_flag BOOLEAN,
+    device_source TEXT,
+    is_auto BOOLEAN DEFAULT FALSE,
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+"""
+
+
+SLEEP_SESSIONS_START_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_sleep_sessions_user_start
+    ON sleep_sessions (user_id, start_at DESC);
+"""
+
+
+SLEEP_SESSIONS_END_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_sleep_sessions_user_end
+    ON sleep_sessions (user_id, end_at DESC);
+"""
+
+
+SLEEP_SESSIONS_ACTIVE_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_sleep_sessions_active
+    ON sleep_sessions (user_id)
+    WHERE end_at IS NULL;
+"""
+
+
+SLEEP_STAGES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS sleep_stages (
+    id BIGSERIAL PRIMARY KEY,
+    session_id BIGINT NOT NULL REFERENCES sleep_sessions(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    stage TEXT NOT NULL,
+    start_at TIMESTAMPTZ NOT NULL,
+    end_at TIMESTAMPTZ NOT NULL,
+    duration_seconds INTEGER,
+    movement_index NUMERIC,
+    heart_rate_avg NUMERIC(5,2),
+    metadata JSONB
+);
+"""
+
+
+SLEEP_STAGES_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_sleep_stages_session_start
+    ON sleep_stages (session_id, start_at);
+"""
+
+
+SLEEP_INSIGHTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS sleep_insights (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    session_id BIGINT REFERENCES sleep_sessions(id) ON DELETE SET NULL,
+    insight_type TEXT NOT NULL,
+    severity TEXT,
+    title TEXT,
+    description TEXT,
+    suggested_action TEXT,
+    status TEXT DEFAULT 'new',
+    metadata JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+"""
+
+
+SLEEP_INSIGHTS_USER_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_sleep_insights_user_created
+    ON sleep_insights (user_id, created_at DESC);
+"""
+
+
+SLEEP_INSIGHTS_TYPE_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_sleep_insights_type
+    ON sleep_insights (insight_type);
+"""
+
+
+SLEEP_INSIGHTS_STATUS_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_sleep_insights_status
+    ON sleep_insights (status);
+"""
+
+
+SLEEP_EVENTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS sleep_events (
+    id BIGSERIAL PRIMARY KEY,
+    session_id BIGINT NOT NULL REFERENCES sleep_sessions(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    event_type TEXT NOT NULL,
+    numeric_value NUMERIC,
+    text_value TEXT,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    metadata JSONB
+);
+"""
+
+
+SLEEP_EVENTS_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_sleep_events_session_time
+    ON sleep_events (session_id, occurred_at);
+"""
+
+
+SLEEP_DAILY_SUMMARY_VIEW_SQL = """
+CREATE MATERIALIZED VIEW IF NOT EXISTS sleep_daily_summary
+WITH (timescaledb.continuous) AS
+SELECT
+    time_bucket('1 day', start_at) AS day,
+    user_id,
+    AVG(score_overall) AS avg_score,
+    SUM(total_duration_minutes) AS total_minutes,
+    SUM(rem_minutes) AS rem_minutes,
+    SUM(deep_minutes) AS deep_minutes,
+    SUM(light_minutes) AS light_minutes,
+    SUM(awakenings_count) AS awakenings,
+    AVG(sleep_efficiency) AS efficiency_avg
+FROM sleep_sessions
+WHERE end_at IS NOT NULL
+GROUP BY day, user_id;
+"""
+
+
+
+
 
 MINDFULNESS_MIN_DURATION_SECONDS = 60
 
@@ -290,6 +466,8 @@ async def init_db() -> None:
                 END $$;
                 """
             )
+
+            
         except Exception:
             pass
 
@@ -297,6 +475,29 @@ async def init_db() -> None:
         await conn.execute(USER_CONVERSATIONS_SQL)
         await conn.execute(BEHAVIORAL_EVENTS_SQL)
         await conn.execute(CONVERSATION_BEHAVIOR_SQL)
+
+
+        # Sleep tracking tables
+        await conn.execute(SLEEP_SCHEDULE_TABLE_SQL)
+        await conn.execute(SLEEP_SCHEDULE_INDEX_SQL)
+
+        await conn.execute(SLEEP_SESSIONS_TABLE_SQL)
+        await conn.execute(SLEEP_SESSIONS_START_INDEX_SQL)
+        await conn.execute(SLEEP_SESSIONS_END_INDEX_SQL)
+        await conn.execute(SLEEP_SESSIONS_ACTIVE_INDEX_SQL)
+
+        await conn.execute(SLEEP_STAGES_TABLE_SQL)
+        await conn.execute(SLEEP_STAGES_INDEX_SQL)
+
+        await conn.execute(SLEEP_INSIGHTS_TABLE_SQL)
+        await conn.execute(SLEEP_INSIGHTS_USER_INDEX_SQL)
+        await conn.execute(SLEEP_INSIGHTS_TYPE_INDEX_SQL)
+        await conn.execute(SLEEP_INSIGHTS_STATUS_INDEX_SQL)
+
+        await conn.execute(SLEEP_EVENTS_TABLE_SQL)
+        await conn.execute(SLEEP_EVENTS_INDEX_SQL)
+        
+        
 
         # Enable timescaledb + hypertables (best effort)
         try:

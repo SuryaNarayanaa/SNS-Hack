@@ -292,7 +292,32 @@ Columns: day (date bucket), user_id, avg_score, total_minutes, rem_minutes, deep
 | /sleep/sessions/{id} | GET | Session detail (with stage breakdown) |
 | /sleep/sessions | GET | List sessions with filters (calendar/history) |
 | /sleep/sessions/calendar | GET | Month view summary (durations + score per day) |
-| /sleep/sessions/active | GET | Current in-progress session if any |
+| /sleep/sessions/active | GET | 
+## Sleep Quality – Backend API & Data Model
+
+End-to-end spec for the Sleep Quality screens (score gauge, calendar, session start/stop, schedule creator, wake summary, insights & filters).
+
+### New Tables
+
+1. sleep_schedule – user’s recurring target schedule.
+2. sleep_sessions – each sleep attempt/night (in-bed interval / detected session).
+3. sleep_stages – granular stage segments (REM / light / deep / awake etc.).
+4. sleep_insights – AI / analytics generated suggestions & detections.
+5. sleep_events (optional) – raw sensor / micro events (movement, snore spikes, heart rate anomalies).
+6. sleep_daily_summary (continuous aggregate/materialized view) – per-day rollups (performance optimization).
+
+#### sleep_schedule
+| Column | Type | Notes |
+| ------ | ---- | ----- |
+| id | BIGSERIAL PK | |
+| user_id | INT FK auth_users | |
+| bedtime_local | TIME | Target sleep start local clock |
+| wake_time_local | TIME | Target wake time local clock |
+| timezone | TEXT | IANA zone (e.g. 'America/Los_Angeles') |
+| active_days | SMALLINT[] | 0=Mon .. 6=Sun (or use bool[7]) |
+| target_duration_minutes | INT | Desired total sleep (e.g. 480) |
+| auto_set_alarm | BOOLEAN | Toggle from UI |
+| show_stats_auto | BOOLEAN | DisCurrent in-progress session if any |
 | /sleep/stats/overview | GET | Aggregate metrics for range (score gauge) |
 | /sleep/stats/daily | GET | Daily durations/scores timeseries |
 | /sleep/stats/stages | GET | Daily stacked stage durations |
