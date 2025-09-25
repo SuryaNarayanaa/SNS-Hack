@@ -43,6 +43,76 @@ CREATE INDEX IF NOT EXISTS idx_auth_sessions_expires_at
 """
 
 
+MENTAL_HEALTH_ASSESSMENTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS mental_health_assessments (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    assessment_type TEXT NOT NULL,
+    triggered_by TEXT,
+    responses JSONB NOT NULL,
+    total_score INTEGER,
+    severity_level TEXT,
+    risk_flags JSONB,
+    recommendations TEXT,
+    next_assessment_due TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+"""
+
+
+MENTAL_HEALTH_ASSESSMENTS_USER_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_mental_health_assessments_user_type
+    ON mental_health_assessments (user_id, assessment_type, completed_at DESC);
+"""
+
+
+MENTAL_HEALTH_ASSESSMENTS_DUE_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_mental_health_assessments_due
+    ON mental_health_assessments (user_id, next_assessment_due)
+    WHERE next_assessment_due IS NOT NULL;
+"""
+
+
+DAILY_MOOD_LOGS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS daily_mood_logs (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    mood INTEGER,
+    notes TEXT,
+    energy_level INTEGER,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+"""
+
+
+DAILY_MOOD_LOGS_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_daily_mood_logs_user_created
+    ON daily_mood_logs (user_id, created_at DESC);
+"""
+
+
+RISK_ALERTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS risk_alerts (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES auth_users(id) ON DELETE CASCADE,
+    alert_type TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    triggered_by TEXT,
+    assessment_id INTEGER REFERENCES mental_health_assessments(id) ON DELETE SET NULL,
+    action_taken TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ
+);
+"""
+
+
+RISK_ALERTS_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_risk_alerts_user_created
+    ON risk_alerts (user_id, created_at DESC);
+"""
+
+
 def _require_connection_string() -> str:
     if not CONNECTION:
         raise RuntimeError("TIMESCALE_SERVICE_URL environment variable must be set")
@@ -119,11 +189,22 @@ async def init_db() -> None:
     );
     """
 
+    
+
     async with db_session() as conn:
         # Core auth/session tables
         await conn.execute(USER_TABLE_SQL)
         await conn.execute(SESSION_TABLE_SQL)
         await conn.execute(SESSION_INDEX_SQL)
+
+        # Assessment + mood tracking tables
+        await conn.execute(MENTAL_HEALTH_ASSESSMENTS_TABLE_SQL)
+        await conn.execute(MENTAL_HEALTH_ASSESSMENTS_USER_INDEX_SQL)
+        await conn.execute(MENTAL_HEALTH_ASSESSMENTS_DUE_INDEX_SQL)
+        await conn.execute(DAILY_MOOD_LOGS_TABLE_SQL)
+        await conn.execute(DAILY_MOOD_LOGS_INDEX_SQL)
+        await conn.execute(RISK_ALERTS_TABLE_SQL)
+        await conn.execute(RISK_ALERTS_INDEX_SQL)
 
         # Backfill legacy auth_users table if it was created without newer columns/constraints
         try:
@@ -420,6 +501,9 @@ async def drop_all_tables(confirm: bool = False, drop_users: bool = False) -> No
         "DROP TABLE IF EXISTS conversation_behavior CASCADE;",
         "DROP TABLE IF EXISTS behavioral_events CASCADE;",
         "DROP TABLE IF EXISTS user_conversations CASCADE;",
+        "DROP TABLE IF EXISTS risk_alerts CASCADE;",
+        "DROP TABLE IF EXISTS daily_mood_logs CASCADE;",
+        "DROP TABLE IF EXISTS mental_health_assessments CASCADE;",
         "DROP TABLE IF EXISTS auth_sessions CASCADE;",
     ]
     if drop_users:

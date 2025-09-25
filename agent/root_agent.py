@@ -15,6 +15,7 @@ load_dotenv()
 from agent.subagents.act_agent import act_agent
 from agent.subagents.ant_detection_sub_agent import ant_detection_sub_agent
 from agent.subagents.cbt_agent import cbt_agent
+from agent.subagents.assessment_aware_agent import assessment_aware_agent
 from agent.subagents.crisis_managment_agent import crisis_management_agent
 from agent.subagents.dbt_agent import dbt_agent
 from agent.subagents.fallback_agent import fallback_agent
@@ -84,23 +85,41 @@ assign_to_crisis_management_agent = create_handoff_tool(
     description="URGENT: Assign immediately for crisis intervention, suicide risk, self-harm, or safety concerns.",
 )
 
+assign_to_assessment_agent = create_handoff_tool(
+    agent_name="assessment_aware_agent",
+    description="Route to assessment-aware specialist to deliver or discuss PHQ-9, GAD-7, and C-SSRS guided support.",
+)
+
 router_llm = ChatGoogleGenerativeAI(model='gemini-1.5-flash')
 
 
 # Create supervisor agent
 supervisor_agent = create_react_agent(
     model=router_llm,
-    tools=[assign_to_crisis_management_agent, assign_to_cbt_agent, assign_to_dbt_agent, assign_to_act_agent, assign_to_fallback_agent, assign_to_memory_module, assign_to_ant_detection_sub_agent],
+    tools=[
+        assign_to_crisis_management_agent,
+        assign_to_assessment_agent,
+        assign_to_cbt_agent,
+        assign_to_dbt_agent,
+        assign_to_act_agent,
+        assign_to_fallback_agent,
+        assign_to_memory_module,
+        assign_to_ant_detection_sub_agent,
+    ],
     prompt=(
         "You are a Master Router (Intent Classifier) managing several agents:\n"
         "- **CRISIS MANAGEMENT Agent**: **IMMEDIATELY** assign for ANY suicide risk, self-harm, hopelessness, or safety concerns\n"
+        "- **ASSESSMENT Agent**: Route when standardized assessments (PHQ-9, GAD-7, C-SSRS) are due, triggered, or assessment results should guide support\n"
         "- CBT Agent: Assign tasks related to Cognitive Behavioral Therapy\n"
         "- DBT Agent: Assign tasks related to Dialectical Behavior Therapy\n"
         "- ACT Agent: Assign tasks related to Acceptance and Commitment Therapy\n"
         "- Fallback Agent: Assign general or unspecified tasks\n"
         "- Memory Module: Assign memory-related operations\n"
         "- ANT Detection Sub-Agent: Assign tasks for detecting Automatic Negative Thoughts\n\n"
-        "**CRITICAL PRIORITY: If you detect ANY crisis indicators (suicide, self-harm, 'want to die', 'can't go on', etc.), IMMEDIATELY transfer to crisis_management_agent**\n\n"
+        "**CRITICAL PRIORITY:**\n"
+        "1. If you detect ANY crisis indicators (suicide, self-harm, 'want to die', 'can't go on', etc.), IMMEDIATELY transfer to crisis_management_agent.\n"
+        "2. If the conversation references assessment reminders, screening needs, or high-severity PHQ-9/GAD-7/C-SSRS results, route to assessment_aware_agent.\n"
+        "3. Otherwise, choose the therapeutic specialist that best fits the user's needs.\n\n"
         "Classify the user's intent and delegate to the appropriate agent. Assign work to one agent at a time, do not call agents in parallel.\n"
         "Do not do any work yourself."
     ),
@@ -111,8 +130,9 @@ supervisor_agent = create_react_agent(
 supervisor = (
     StateGraph(MessagesState)
     # NOTE: destinations is only needed for visualization and doesn't affect runtime behavior
-    .add_node(supervisor_agent, destinations=("crisis_management_agent", "cbt_agent", "dbt_agent", "act_agent", "fallback_agent", "memory_module", "ant_detection_sub_agent"))
+    .add_node(supervisor_agent, destinations=("crisis_management_agent", "assessment_aware_agent", "cbt_agent", "dbt_agent", "act_agent", "fallback_agent", "memory_module", "ant_detection_sub_agent"))
     .add_node(crisis_management_agent)
+    .add_node(assessment_aware_agent)
     .add_node(cbt_agent)
     .add_node(dbt_agent)
     .add_node(act_agent)
@@ -122,6 +142,7 @@ supervisor = (
     .add_edge(START, "supervisor")
 
     .add_edge("crisis_management_agent", "supervisor")
+    .add_edge("assessment_aware_agent", "supervisor")
     .add_edge("cbt_agent", "supervisor")
     .add_edge("dbt_agent", "supervisor")
     .add_edge("act_agent", "supervisor")
