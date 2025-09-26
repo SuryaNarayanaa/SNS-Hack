@@ -11,7 +11,7 @@ from db import insert_conversation_message
 
 
 _prompt = ChatPromptTemplate.from_template(ACT_AGENT_PROMPT)
-_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+_llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
 
 
 async def act_agent(state):

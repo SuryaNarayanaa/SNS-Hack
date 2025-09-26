@@ -82,7 +82,7 @@ async def assessment_aware_agent(state: Dict[str, Any]) -> Dict[str, Any]:
         severity_levels=assessment_summary["severity_summary"],
     )
 
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0.3)
+    llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.3)
     response = llm.invoke([{"role": "user", "content": formatted}])
 
     overall_risk = _determine_overall_risk(

@@ -68,7 +68,7 @@ def crisis_management_agent(state: Dict[str, Any]) -> Dict[str, Any]:
         
         # Initialize LLM
         llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
+            model="gemini-2.0-flash",
             temperature=0.1  # Low temperature for consistent crisis responses
         )
         
