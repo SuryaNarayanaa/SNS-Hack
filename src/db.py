@@ -2,19 +2,62 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from typing import AsyncIterator, Any, Iterable, Mapping, Sequence
 
 import asyncpg
+from asyncpg import PostgresConnectionError
 from dotenv import load_dotenv
 import asyncio
 
 load_dotenv()
 
 
+logger = logging.getLogger(__name__)
+
+
+class DatabaseUnavailableError(RuntimeError):
+    """Raised when the database cannot be reached after retries."""
+
+
+def _parse_int_env(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        logger.warning("Invalid %s=%r; using default %d", name, value, default)
+        return default
+
+
+def _parse_float_env(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        logger.warning("Invalid %s=%r; using default %.2f", name, value, default)
+        return default
+
+
 CONNECTION = os.getenv("TIMESCALE_SERVICE_URL")
+SKIP_DB_ON_STARTUP = os.getenv("DB_SKIP_ON_STARTUP", "false").lower() == "true"
+DB_INIT_RETRIES = _parse_int_env("DB_INIT_RETRIES", 3)
+DB_INIT_RETRY_DELAY = _parse_float_env("DB_INIT_RETRY_DELAY", 2.5)
+DB_CONNECT_TIMEOUT = _parse_float_env("DB_CONNECT_TIMEOUT", 10.0)
+
+
+RETRYABLE_EXCEPTIONS = (
+    asyncio.TimeoutError,
+    OSError,
+    ConnectionError,
+    PostgresConnectionError,
+)
 
 
 USER_TABLE_SQL = """
@@ -575,26 +618,76 @@ def _require_connection_string() -> str:
     return CONNECTION
 
 
+async def _connect_with_retry(dsn: str) -> asyncpg.Connection:
+    last_exc: Exception | None = None
+    for attempt in range(1, DB_INIT_RETRIES + 1):
+        try:
+            return await asyncpg.connect(dsn, timeout=DB_CONNECT_TIMEOUT)
+        except RETRYABLE_EXCEPTIONS as exc:
+            last_exc = exc
+            if attempt >= DB_INIT_RETRIES:
+                break
+            logger.warning(
+                "Database connection attempt %d/%d failed: %s",
+                attempt,
+                DB_INIT_RETRIES,
+                exc,
+            )
+            await asyncio.sleep(DB_INIT_RETRY_DELAY)
+
+    raise DatabaseUnavailableError(
+        "Unable to connect to TimescaleDB after "
+        f"{DB_INIT_RETRIES} attempt(s)."
+    ) from last_exc
+
+
 async def get_db() -> asyncpg.Connection:
     """Create a one-off connection; caller is responsible for closing it."""
 
     dsn = _require_connection_string()
-    return await asyncpg.connect(dsn)
+    try:
+        return await _connect_with_retry(dsn)
+    except DatabaseUnavailableError as exc:
+        logger.error(
+            "Database connection failed. Check TIMESCALE_SERVICE_URL, network access, and that the database is reachable."
+        )
+        raise
 
 
 @asynccontextmanager
-async def db_session() -> AsyncIterator[asyncpg.Connection]:
+async def db_session(
+    *, allow_skip: bool = False
+) -> AsyncIterator[asyncpg.Connection | None]:
     """Context manager that opens and closes a connection automatically."""
 
-    conn = await get_db()
+    conn: asyncpg.Connection | None = None
+    try:
+        conn = await get_db()
+    except DatabaseUnavailableError:
+        if allow_skip:
+            logger.warning(
+                "Database connection unavailable; continuing with allow_skip=True."
+            )
+            yield None
+            return
+        raise
+
     try:
         yield conn
     finally:
-        await conn.close()
+        if conn is not None:
+            await conn.close()
 
 
 async def init_db() -> None:
     """Ensure required tables and indexes exist."""
+
+    if SKIP_DB_ON_STARTUP:
+        logger.warning(
+            "DB_SKIP_ON_STARTUP=true: skipping database initialization. "
+            "Database-backed features will be unavailable until a connection is established."
+        )
+        return
     # --- Mental / Behavioral telemetry schema additions ---
     USER_CONVERSATIONS_SQL = """
     CREATE TABLE IF NOT EXISTS user_conversations (
@@ -645,7 +738,13 @@ async def init_db() -> None:
     );
     """
 
-    async with db_session() as conn:
+    async with db_session(allow_skip=True) as conn:
+        if conn is None:
+            raise DatabaseUnavailableError(
+                "Unable to connect to TimescaleDB during startup. "
+                "Verify TIMESCALE_SERVICE_URL or set DB_SKIP_ON_STARTUP=true "
+                "to bypass initialization while developing."
+            )
         # Core auth/session tables
         await conn.execute(USER_TABLE_SQL)
         await conn.execute(SESSION_TABLE_SQL)

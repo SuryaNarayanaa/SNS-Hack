@@ -1,3 +1,5 @@
+
+
 """FastAPI entry point for the SNS Hack backend."""
 
 from __future__ import annotations
@@ -5,9 +7,9 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from typing import Any
+import uuid
 
 from fastapi import Depends, FastAPI, HTTPException, status, Query
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from langchain_core.messages import HumanMessage
@@ -39,15 +41,6 @@ from routes.mood_routes import router as mood_router
 app = FastAPI(title="Neptune - Mental Healthcare App", version="0.2.0")
 bearer_scheme = HTTPBearer(auto_error=False)
 
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend domain
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 app.include_router(sleep_router)
 app.include_router(stress_router)
 app.include_router(mood_router)
@@ -57,7 +50,7 @@ from pydantic import EmailStr
 
 class UserResponse(BaseModel):
     id: int
-    email: str
+    email: EmailStr
     is_guest: bool
     created_at: datetime
 
@@ -70,12 +63,12 @@ class AuthResponse(BaseModel):
 
 
 class RegisterRequest(BaseModel):
-    email: str = Field(...)
+    email: EmailStr = Field(...)
     password: str = Field(..., min_length=6, max_length=128)
 
 
 class LoginRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 
@@ -130,13 +123,8 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials | None = De
 
 @app.on_event("startup")
 async def startup() -> None:
-    try:
-        await init_db()
-        await cleanup_expired_sessions()
-    except Exception as e:
-        print(f"Database initialization failed: {e}")
-        print("Starting server without database connection...")
-        # Continue without database for development
+    await init_db()
+    await cleanup_expired_sessions()
 
 
 @app.get("/")
@@ -162,14 +150,11 @@ async def register(payload: RegisterRequest) -> AuthResponse:
     try:
         user = await create_user(payload.email, payload.password)
     except DuplicateUserError as exc:
-        print(f"DuplicateUserError: {exc}")  # Log error to terminal
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    except Exception as exc:
-        print(f"Unexpected error during registration: {exc}")  # Log unexpected errors
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Registration failed") from exc
 
     token, expires_at = await create_session(user["id"])
     return AuthResponse(access_token=token, expires_at=expires_at, user=UserResponse(**user))
+
 
 @app.post("/auth/login", response_model=AuthResponse)
 async def login(payload: LoginRequest) -> AuthResponse:
@@ -196,11 +181,14 @@ async def chat(payload: ChatRequest, current_user: dict[str, Any] = Depends(get_
     initial_state = {
         "messages": [HumanMessage(content=payload.message)],
         "user_context": payload.user_context or "No additional context provided.",
-    "extra_state": {"auth_user": {key: current_user[key] for key in ("id", "email", "is_guest", "token") if key in current_user}},
+        "extra_state": {"auth_user": {key: current_user[key] for key in ("id", "email", "is_guest", "token") if key in current_user}},
     }
 
+    thread_id = str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+
     async def generate_response():
-        async for event in supervisor.astream_events(initial_state, version="v2"):
+        async for event in supervisor.astream_events(initial_state, config=config, version="v2"):
             if event["event"] == "on_chat_model_stream":
                 chunk_data = event["data"].get("chunk")
                 if chunk_data and hasattr(chunk_data, "content"):
