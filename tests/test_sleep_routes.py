@@ -6,7 +6,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from routes import sleep_routes
+from src.routes import sleep_routes
 
 
 AUTH_HEADERS = {"Authorization": "Bearer token"}

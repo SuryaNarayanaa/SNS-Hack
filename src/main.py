@@ -224,7 +224,7 @@ async def chat(payload: ChatRequest, current_user: dict[str, Any] = Depends(get_
     return StreamingResponse(
         generate_response(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Thread-Id": thread_id},
     )
 
 

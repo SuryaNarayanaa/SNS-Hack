@@ -6,7 +6,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from routes import mindful_routes
+from src.routes import mindful_routes
 
 
 AUTH_HEADERS = {"Authorization": "Bearer fake-token"}
