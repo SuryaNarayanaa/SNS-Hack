@@ -12,7 +12,7 @@ from db import insert_behavioral_event, insert_conversation_message
 
 
 _prompt = ChatPromptTemplate.from_template(MEMORY_MODULE_PROMPT)
-_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+_llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
 
 
 async def memory_module(state):

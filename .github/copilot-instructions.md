@@ -1,6 +1,6 @@
 # SNS Hack · Copilot Working Notes
 
-1. **Environment first.** The runtime expects Python ≥3.13 (see `pyproject.toml`) plus the packages pinned in `req.txt`. Install them with `pip install -r req.txt`. Load a `.env` file or export `GOOGLE_API_KEY` before importing `agent.root_agent`; it raises immediately if the key is missing. Optionally set `GOOGLE_MODEL_NAME` (defaults to `gemini-1.5-flash`).
+1. **Environment first.** The runtime expects Python ≥3.13 (see `pyproject.toml`) plus the packages pinned in `req.txt`. Install them with `pip install -r req.txt`. Load a `.env` file or export `GOOGLE_API_KEY` before importing `agent.root_agent`; it raises immediately if the key is missing. Optionally set `GOOGLE_MODEL_NAME` (defaults to `gemini-2.0-flash`).
 2. **Primary entry point.** `agent/root_agent.py` builds a LangGraph `StateGraph` called `supervisor`. Use `agent.invoke_supervisor(message, user_context=...)` to drive conversations, or run `python -m agent.root_agent` for the sample prompt at the bottom of that file.
 3. **State contract.** Every node receives a `MessagesState` dict containing:
    - `messages`: list of LangChain `BaseMessage` objects.

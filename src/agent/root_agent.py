@@ -90,7 +90,7 @@ assign_to_assessment_agent = create_handoff_tool(
     description="Route to assessment-aware specialist to deliver or discuss PHQ-9, GAD-7, and C-SSRS guided support.",
 )
 
-router_llm = ChatGoogleGenerativeAI(model='gemini-1.5-flash')
+router_llm = ChatGoogleGenerativeAI(model='gemini-2.0-flash')
 
 
 # Create supervisor agent

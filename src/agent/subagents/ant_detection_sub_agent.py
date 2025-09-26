@@ -6,7 +6,7 @@ from agent.utils import get_conversation_history, get_last_user_message
 
 
 _prompt = ChatPromptTemplate.from_template(ANT_DETECTION_PROMPT)
-_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+_llm = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
 
 
 async def ant_detection_sub_agent(state):
