@@ -136,11 +136,19 @@ async def list_mood_entries(
 	params: list[Any] = [user_id]
 
 	if filters.get("from"):
-		clauses.append(f"created_at >= ${len(params)+1}")
-		params.append(filters["from"])
+		try:
+			from_dt = datetime.fromisoformat(filters["from"].replace('Z', '+00:00'))
+			clauses.append(f"created_at >= ${len(params)+1}")
+			params.append(from_dt)
+		except ValueError:
+			pass  # Skip invalid date
 	if filters.get("to"):
-		clauses.append(f"created_at <= ${len(params)+1}")
-		params.append(filters["to"])
+		try:
+			to_dt = datetime.fromisoformat(filters["to"].replace('Z', '+00:00'))
+			clauses.append(f"created_at <= ${len(params)+1}")
+			params.append(to_dt)
+		except ValueError:
+			pass  # Skip invalid date
 	if filters.get("mood_min") is not None:
 		clauses.append(f"mood_value >= ${len(params)+1}")
 		params.append(filters["mood_min"])

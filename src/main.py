@@ -39,9 +39,18 @@ from db import (
 from routes.sleep_routes import router as sleep_router
 from routes.stress_routes import router as stress_router
 from routes.mood_routes import router as mood_router
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(title="Neptune - Mental Healthcare App", version="0.2.0")
 bearer_scheme = HTTPBearer(auto_error=False)
+
+app.add_middleware(
+  CORSMiddleware,
+  allow_origins=["*"],
+  allow_credentials=True,
+  allow_methods=["*"],
+  allow_headers=["*"],
+)
 
 app.include_router(sleep_router)
 app.include_router(stress_router)
@@ -215,7 +224,7 @@ async def chat(payload: ChatRequest, current_user: dict[str, Any] = Depends(get_
     return StreamingResponse(
         generate_response(),
         media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Thread-Id": thread_id},
     )
 
 
