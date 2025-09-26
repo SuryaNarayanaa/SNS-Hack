@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
 from datetime import datetime
 from typing import Any
@@ -48,6 +50,8 @@ app.include_router(mood_router)
 
 from pydantic import EmailStr
 
+logger = logging.getLogger(__name__)
+
 class UserResponse(BaseModel):
     id: int
     email: EmailStr
@@ -79,6 +83,8 @@ class GuestRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
     user_context: str | None = None
+    thread_id: str | None = None
+    checkpoint_namespace: str | None = None
 
 
 # --- Telemetry / Behavioral Logging Schemas ---
@@ -184,20 +190,27 @@ async def chat(payload: ChatRequest, current_user: dict[str, Any] = Depends(get_
         "extra_state": {"auth_user": {key: current_user[key] for key in ("id", "email", "is_guest", "token") if key in current_user}},
     }
 
-    thread_id = str(uuid.uuid4())
-    config = {"configurable": {"thread_id": thread_id}}
+    thread_id = payload.thread_id or current_user.get("token") or str(uuid.uuid4())
+    checkpoint_namespace = payload.checkpoint_namespace or ""
+    config = {"configurable": {"thread_id": thread_id, "checkpoint_ns": checkpoint_namespace}}
 
     async def generate_response():
-        async for event in supervisor.astream_events(initial_state, config=config, version="v2"):
-            if event["event"] == "on_chat_model_stream":
-                chunk_data = event["data"].get("chunk")
-                if chunk_data and hasattr(chunk_data, "content"):
-                    chunk = chunk_data.content
-                    if chunk:
-                        yield f"data: {chunk}\n\n"
-            elif event["event"] == "on_chain_end" and event["name"] == "LangGraph":
-                yield "data: [DONE]\n\n"
-                break
+        yield f"event: thread\ndata: {thread_id}\n\n"
+        try:
+            async for event in supervisor.astream_events(initial_state, config=config, version="v2"):
+                if event["event"] == "on_chat_model_stream":
+                    chunk_data = event["data"].get("chunk")
+                    if chunk_data and hasattr(chunk_data, "content"):
+                        chunk = chunk_data.content
+                        if chunk:
+                            yield f"data: {chunk}\n\n"
+                elif event["event"] == "on_chain_end" and event["name"] == "LangGraph":
+                    yield "data: [DONE]\n\n"
+                    break
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.exception("Chat stream failed", exc_info=exc)
+            error_payload = json.dumps({"error": "chat_stream_failed", "detail": str(exc)})
+            yield f"event: error\ndata: {error_payload}\n\n"
 
     return StreamingResponse(
         generate_response(),
