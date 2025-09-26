@@ -1,0 +1,566 @@
+{
+  "mindfulness_sessions": [
+    {
+      "exercise_type": "breathing",
+      "goal_code": "reduce_stress",
+      "planned_duration_seconds": 600,
+      "actual_duration_seconds": 550,
+      "start_at": "2025-07-01T10:00:00Z",
+      "end_at": "2025-07-01T10:09:10Z",
+      "score_restful": 85.5,
+      "score_focus": null,
+      "tags": ["morning", "stress"],
+      "metadata": {"note": "Felt calmer"}
+    },
+    {
+      "exercise_type": "mindfulness",
+      "goal_code": "sleep_better",
+      "planned_duration_seconds": 900,
+      "actual_duration_seconds": 850,
+      "start_at": "2025-07-02T20:00:00Z",
+      "end_at": "2025-07-02T20:14:10Z",
+      "score_restful": 90.0,
+      "score_focus": null,
+      "tags": ["evening", "sleep"],
+      "metadata": {"note": "Better sleep prep"}
+    },
+    {
+      "exercise_type": "breathing",
+      "goal_code": "focus_better",
+      "planned_duration_seconds": 1200,
+      "actual_duration_seconds": 1150,
+      "start_at": "2025-07-08T09:00:00Z",
+      "end_at": "2025-07-08T09:19:10Z",
+      "score_restful": null,
+      "score_focus": 88.0,
+      "tags": ["work", "focus"],
+      "metadata": {"note": "Improved concentration"}
+    },
+    {
+      "exercise_type": "mindfulness",
+      "goal_code": "calm_evening",
+      "planned_duration_seconds": 1500,
+      "actual_duration_seconds": 1450,
+      "start_at": "2025-07-15T19:00:00Z",
+      "end_at": "2025-07-15T19:24:10Z",
+      "score_restful": 92.0,
+      "score_focus": null,
+      "tags": ["evening", "relax"],
+      "metadata": {"note": "Wind down"}
+    },
+    {
+      "exercise_type": "breathing",
+      "goal_code": "reduce_stress",
+      "planned_duration_seconds": 600,
+      "actual_duration_seconds": 580,
+      "start_at": "2025-08-01T10:00:00Z",
+      "end_at": "2025-08-01T10:09:40Z",
+      "score_restful": 87.0,
+      "score_focus": null,
+      "tags": ["morning", "stress"],
+      "metadata": {"note": "Managed stress"}
+    },
+    {
+      "exercise_type": "mindfulness",
+      "goal_code": "sleep_better",
+      "planned_duration_seconds": 900,
+      "actual_duration_seconds": 870,
+      "start_at": "2025-08-02T20:00:00Z",
+      "end_at": "2025-08-02T20:14:30Z",
+      "score_restful": 91.0,
+      "score_focus": null,
+      "tags": ["evening", "sleep"],
+      "metadata": {"note": "Good prep"}
+    },
+    {
+      "exercise_type": "breathing",
+      "goal_code": "focus_better",
+      "planned_duration_seconds": 1200,
+      "actual_duration_seconds": 1180,
+      "start_at": "2025-08-08T09:00:00Z",
+      "end_at": "2025-08-08T09:19:40Z",
+      "score_restful": null,
+      "score_focus": 89.0,
+      "tags": ["work", "focus"],
+      "metadata": {"note": "Better focus"}
+    },
+    {
+      "exercise_type": "mindfulness",
+      "goal_code": "calm_evening",
+      "planned_duration_seconds": 1500,
+      "actual_duration_seconds": 1480,
+      "start_at": "2025-08-15T19:00:00Z",
+      "end_at": "2025-08-15T19:24:40Z",
+      "score_restful": 93.0,
+      "score_focus": null,
+      "tags": ["evening", "relax"],
+      "metadata": {"note": "Relaxed"}
+    },
+    {
+      "exercise_type": "breathing",
+      "goal_code": "reduce_stress",
+      "planned_duration_seconds": 600,
+      "actual_duration_seconds": 590,
+      "start_at": "2025-09-01T10:00:00Z",
+      "end_at": "2025-09-01T10:09:50Z",
+      "score_restful": 86.0,
+      "score_focus": null,
+      "tags": ["morning", "stress"],
+      "metadata": {"note": "Calmer"}
+    },
+    {
+      "exercise_type": "mindfulness",
+      "goal_code": "sleep_better",
+      "planned_duration_seconds": 900,
+      "actual_duration_seconds": 880,
+      "start_at": "2025-09-02T20:00:00Z",
+      "end_at": "2025-09-02T20:14:40Z",
+      "score_restful": 90.5,
+      "score_focus": null,
+      "tags": ["evening", "sleep"],
+      "metadata": {"note": "Sleep improved"}
+    }
+  ],
+  "mindfulness_session_events": [
+    {
+      "session_index": 0,
+      "event_type": "breath_cycle",
+      "numeric_value": 6.0,
+      "occurred_at": "2025-07-01T10:02:00Z"
+    },
+    {
+      "session_index": 1,
+      "event_type": "pause",
+      "text_value": "Short break",
+      "occurred_at": "2025-07-02T20:05:00Z"
+    },
+    {
+      "session_index": 2,
+      "event_type": "breath_cycle",
+      "numeric_value": 7.0,
+      "occurred_at": "2025-07-08T09:05:00Z"
+    },
+    {
+      "session_index": 3,
+      "event_type": "pause",
+      "text_value": "Rest",
+      "occurred_at": "2025-07-15T19:10:00Z"
+    },
+    {
+      "session_index": 4,
+      "event_type": "breath_cycle",
+      "numeric_value": 6.5,
+      "occurred_at": "2025-08-01T10:03:00Z"
+    },
+    {
+      "session_index": 5,
+      "event_type": "pause",
+      "text_value": "Break",
+      "occurred_at": "2025-08-02T20:07:00Z"
+    },
+    {
+      "session_index": 6,
+      "event_type": "breath_cycle",
+      "numeric_value": 7.5,
+      "occurred_at": "2025-08-08T09:06:00Z"
+    },
+    {
+      "session_index": 7,
+      "event_type": "pause",
+      "text_value": "Relax",
+      "occurred_at": "2025-08-15T19:12:00Z"
+    },
+    {
+      "session_index": 8,
+      "event_type": "breath_cycle",
+      "numeric_value": 6.2,
+      "occurred_at": "2025-09-01T10:04:00Z"
+    },
+    {
+      "session_index": 9,
+      "event_type": "pause",
+      "text_value": "Pause",
+      "occurred_at": "2025-09-02T20:08:00Z"
+    }
+  ],
+  "sleep_sessions": [
+    {
+      "start_at": "2025-07-01T22:00:00Z",
+      "end_at": "2025-07-02T06:00:00Z",
+      "in_bed_start_at": "2025-07-01T22:15:00Z",
+      "in_bed_end_at": "2025-07-02T05:45:00Z",
+      "total_duration_minutes": 480.0,
+      "time_in_bed_minutes": 450.0,
+      "sleep_efficiency": 0.85,
+      "latency_minutes": 15.0,
+      "awakenings_count": 2,
+      "rem_minutes": 120.0,
+      "deep_minutes": 90.0,
+      "light_minutes": 240.0,
+      "awake_minutes": 30.0,
+      "heart_rate_avg": 65.0,
+      "score_overall": 85.0,
+      "quality_label": "Good",
+      "device_source": "app",
+      "metadata": {"note": "Restful night"}
+    },
+    {
+      "start_at": "2025-07-02T22:00:00Z",
+      "end_at": "2025-07-03T06:00:00Z",
+      "in_bed_start_at": "2025-07-02T22:10:00Z",
+      "in_bed_end_at": "2025-07-03T05:50:00Z",
+      "total_duration_minutes": 480.0,
+      "time_in_bed_minutes": 460.0,
+      "sleep_efficiency": 0.87,
+      "latency_minutes": 10.0,
+      "awakenings_count": 1,
+      "rem_minutes": 125.0,
+      "deep_minutes": 95.0,
+      "light_minutes": 245.0,
+      "awake_minutes": 25.0,
+      "heart_rate_avg": 64.0,
+      "score_overall": 87.0,
+      "quality_label": "Excellent",
+      "device_source": "app",
+      "metadata": {"note": "Very good sleep"}
+    },
+    {
+      "start_at": "2025-08-01T22:00:00Z",
+      "end_at": "2025-08-02T06:00:00Z",
+      "in_bed_start_at": "2025-08-01T22:20:00Z",
+      "in_bed_end_at": "2025-08-02T05:40:00Z",
+      "total_duration_minutes": 480.0,
+      "time_in_bed_minutes": 440.0,
+      "sleep_efficiency": 0.83,
+      "latency_minutes": 20.0,
+      "awakenings_count": 3,
+      "rem_minutes": 115.0,
+      "deep_minutes": 85.0,
+      "light_minutes": 235.0,
+      "awake_minutes": 35.0,
+      "heart_rate_avg": 66.0,
+      "score_overall": 83.0,
+      "quality_label": "Fair",
+      "device_source": "app",
+      "metadata": {"note": "Some disturbances"}
+    },
+    {
+      "start_at": "2025-09-01T22:00:00Z",
+      "end_at": "2025-09-02T06:00:00Z",
+      "in_bed_start_at": "2025-09-01T22:05:00Z",
+      "in_bed_end_at": "2025-09-02T05:55:00Z",
+      "total_duration_minutes": 480.0,
+      "time_in_bed_minutes": 470.0,
+      "sleep_efficiency": 0.89,
+      "latency_minutes": 5.0,
+      "awakenings_count": 0,
+      "rem_minutes": 130.0,
+      "deep_minutes": 100.0,
+      "light_minutes": 250.0,
+      "awake_minutes": 20.0,
+      "heart_rate_avg": 63.0,
+      "score_overall": 89.0,
+      "quality_label": "Excellent",
+      "device_source": "app",
+      "metadata": {"note": "Perfect sleep"}
+    }
+  ],
+  "sleep_stages": [
+    {
+      "session_index": 0,
+      "stage": "deep",
+      "start_at": "2025-07-01T23:00:00Z",
+      "end_at": "2025-07-02T00:00:00Z",
+      "duration_seconds": 3600,
+      "movement_index": 0.1
+    },
+    {
+      "session_index": 0,
+      "stage": "rem",
+      "start_at": "2025-07-02T01:00:00Z",
+      "end_at": "2025-07-02T02:00:00Z",
+      "duration_seconds": 3600,
+      "movement_index": 0.05
+    },
+    {
+      "session_index": 1,
+      "stage": "deep",
+      "start_at": "2025-07-02T23:00:00Z",
+      "end_at": "2025-07-03T00:00:00Z",
+      "duration_seconds": 3600,
+      "movement_index": 0.08
+    },
+    {
+      "session_index": 1,
+      "stage": "rem",
+      "start_at": "2025-07-03T01:00:00Z",
+      "end_at": "2025-07-03T02:00:00Z",
+      "duration_seconds": 3600,
+      "movement_index": 0.03
+    },
+    {
+      "session_index": 2,
+      "stage": "deep",
+      "start_at": "2025-08-01T23:00:00Z",
+      "end_at": "2025-08-02T00:00:00Z",
+      "duration_seconds": 3600,
+      "movement_index": 0.12
+    },
+    {
+      "session_index": 3,
+      "stage": "deep",
+      "start_at": "2025-09-01T23:00:00Z",
+      "end_at": "2025-09-02T00:00:00Z",
+      "duration_seconds": 3600,
+      "movement_index": 0.06
+    },
+    {
+      "session_index": 3,
+      "stage": "rem",
+      "start_at": "2025-09-02T01:00:00Z",
+      "end_at": "2025-09-02T02:00:00Z",
+      "duration_seconds": 3600,
+      "movement_index": 0.02
+    }
+  ],
+  "mood_entries": [
+    {
+      "mood_value": 4,
+      "mood_label": "Happy",
+      "note": "Great day",
+      "improvement_flag": true,
+      "created_at": "2025-07-01T12:00:00Z"
+    },
+    {
+      "mood_value": 3,
+      "mood_label": "Neutral",
+      "note": "Okay",
+      "improvement_flag": false,
+      "created_at": "2025-07-02T12:00:00Z"
+    },
+    {
+      "mood_value": 5,
+      "mood_label": "Very Happy",
+      "note": "Excellent",
+      "improvement_flag": true,
+      "created_at": "2025-07-08T12:00:00Z"
+    },
+    {
+      "mood_value": 2,
+      "mood_label": "Sad",
+      "note": "Tough day",
+      "improvement_flag": false,
+      "created_at": "2025-07-15T12:00:00Z"
+    },
+    {
+      "mood_value": 4,
+      "mood_label": "Happy",
+      "note": "Good",
+      "improvement_flag": true,
+      "created_at": "2025-08-01T12:00:00Z"
+    },
+    {
+      "mood_value": 3,
+      "mood_label": "Neutral",
+      "note": "Average",
+      "improvement_flag": false,
+      "created_at": "2025-08-02T12:00:00Z"
+    },
+    {
+      "mood_value": 4,
+      "mood_label": "Happy",
+      "note": "Nice",
+      "improvement_flag": true,
+      "created_at": "2025-09-01T12:00:00Z"
+    },
+    {
+      "mood_value": 5,
+      "mood_label": "Very Happy",
+      "note": "Awesome",
+      "improvement_flag": true,
+      "created_at": "2025-09-02T12:00:00Z"
+    }
+  ],
+  "stress_assessments": [
+    {
+      "score": 3,
+      "qualitative_label": "Moderate",
+      "context_note": "Work stress",
+      "created_at": "2025-07-01T14:00:00Z"
+    },
+    {
+      "score": 2,
+      "qualitative_label": "Mild",
+      "context_note": "Light stress",
+      "created_at": "2025-07-02T14:00:00Z"
+    },
+    {
+      "score": 4,
+      "qualitative_label": "High",
+      "context_note": "Heavy workload",
+      "created_at": "2025-07-08T14:00:00Z"
+    },
+    {
+      "score": 1,
+      "qualitative_label": "Low",
+      "context_note": "Relaxed",
+      "created_at": "2025-07-15T14:00:00Z"
+    },
+    {
+      "score": 3,
+      "qualitative_label": "Moderate",
+      "context_note": "Ongoing",
+      "created_at": "2025-08-01T14:00:00Z"
+    },
+    {
+      "score": 2,
+      "qualitative_label": "Mild",
+      "context_note": "Better",
+      "created_at": "2025-09-01T14:00:00Z"
+    }
+  ],
+  "behavioral_events": [
+    {
+      "event_type": "mood_rating",
+      "numeric_value": 0.8,
+      "occurred_at": "2025-07-01T12:00:00Z"
+    },
+    {
+      "event_type": "stress_rating",
+      "numeric_value": 0.6,
+      "occurred_at": "2025-07-01T14:00:00Z"
+    },
+    {
+      "event_type": "mood_rating",
+      "numeric_value": 0.6,
+      "occurred_at": "2025-07-02T12:00:00Z"
+    },
+    {
+      "event_type": "stress_rating",
+      "numeric_value": 0.4,
+      "occurred_at": "2025-07-02T14:00:00Z"
+    },
+    {
+      "event_type": "mood_rating",
+      "numeric_value": 1.0,
+      "occurred_at": "2025-07-08T12:00:00Z"
+    },
+    {
+      "event_type": "stress_rating",
+      "numeric_value": 0.8,
+      "occurred_at": "2025-07-08T14:00:00Z"
+    },
+    {
+      "event_type": "mood_rating",
+      "numeric_value": 0.4,
+      "occurred_at": "2025-07-15T12:00:00Z"
+    },
+    {
+      "event_type": "stress_rating",
+      "numeric_value": 0.2,
+      "occurred_at": "2025-07-15T14:00:00Z"
+    },
+    {
+      "event_type": "mood_rating",
+      "numeric_value": 0.8,
+      "occurred_at": "2025-08-01T12:00:00Z"
+    },
+    {
+      "event_type": "stress_rating",
+      "numeric_value": 0.6,
+      "occurred_at": "2025-08-01T14:00:00Z"
+    },
+    {
+      "event_type": "mood_rating",
+      "numeric_value": 0.6,
+      "occurred_at": "2025-08-02T12:00:00Z"
+    },
+    {
+      "event_type": "mood_rating",
+      "numeric_value": 0.8,
+      "occurred_at": "2025-09-01T12:00:00Z"
+    },
+    {
+      "event_type": "stress_rating",
+      "numeric_value": 0.4,
+      "occurred_at": "2025-09-01T14:00:00Z"
+    },
+    {
+      "event_type": "mood_rating",
+      "numeric_value": 1.0,
+      "occurred_at": "2025-09-02T12:00:00Z"
+    }
+  ],
+  "conversation_behavior": [
+    {
+      "role": "user",
+      "content": "I'm feeling stressed",
+      "intent": "stress",
+      "sentiment": -0.3,
+      "occurred_at": "2025-07-01T15:00:00Z"
+    },
+    {
+      "role": "agent",
+      "content": "Let's try some breathing exercises",
+      "intent": "intervention",
+      "sentiment": 0.1,
+      "occurred_at": "2025-07-01T15:01:00Z"
+    },
+    {
+      "role": "user",
+      "content": "That helped",
+      "intent": "positive_feedback",
+      "sentiment": 0.5,
+      "occurred_at": "2025-07-02T15:00:00Z"
+    },
+    {
+      "role": "agent",
+      "content": "Great to hear",
+      "intent": "encouragement",
+      "sentiment": 0.3,
+      "occurred_at": "2025-07-02T15:01:00Z"
+    },
+    {
+      "role": "user",
+      "content": "Feeling down today",
+      "intent": "mood",
+      "sentiment": -0.4,
+      "occurred_at": "2025-07-15T15:00:00Z"
+    },
+    {
+      "role": "agent",
+      "content": "Let's talk about it",
+      "intent": "support",
+      "sentiment": 0.2,
+      "occurred_at": "2025-07-15T15:01:00Z"
+    },
+    {
+      "role": "user",
+      "content": "Much better now",
+      "intent": "improvement",
+      "sentiment": 0.6,
+      "occurred_at": "2025-08-01T15:00:00Z"
+    },
+    {
+      "role": "agent",
+      "content": "I'm glad",
+      "intent": "positive_response",
+      "sentiment": 0.4,
+      "occurred_at": "2025-08-01T15:01:00Z"
+    },
+    {
+      "role": "user",
+      "content": "Excited for the weekend",
+      "intent": "positive",
+      "sentiment": 0.7,
+      "occurred_at": "2025-09-01T15:00:00Z"
+    },
+    {
+      "role": "agent",
+      "content": "Enjoy it",
+      "intent": "encouragement",
+      "sentiment": 0.3,
+      "occurred_at": "2025-09-01T15:01:00Z"
+    }
+  ]
+}

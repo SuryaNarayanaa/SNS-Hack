@@ -6,11 +6,14 @@ import base64
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
+import logging
 from typing import Any, Optional, Tuple, cast
 
 import asyncpg
 
 from db import db_session
+
+logger = logging.getLogger(__name__)
 
 HASH_NAME = "sha256"
 HASH_ITERATIONS = 390_000
@@ -196,5 +199,10 @@ async def revoke_session(token: str) -> None:
 
 
 async def cleanup_expired_sessions() -> None:
-    async with db_session() as conn:
+    async with db_session(allow_skip=True) as conn:
+        if conn is None:
+            logger.warning(
+                "Skipping expired session cleanup; database connection is unavailable."
+            )
+            return
         await conn.execute("DELETE FROM auth_sessions WHERE expires_at <= NOW()")

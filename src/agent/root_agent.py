@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import os
+import sqlite3
 from typing import Annotated, Any, Mapping, MutableMapping, cast
+
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import InjectedToolCallId, tool
@@ -9,8 +12,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import MessagesState, START, StateGraph
 from langgraph.prebuilt import InjectedState, create_react_agent
 from langgraph.types import Command
-from dotenv import load_dotenv
-load_dotenv()
+from langgraph.checkpoint.sqlite import SqliteSaver
 
 from agent.subagents.act_agent import act_agent
 from agent.subagents.ant_detection_sub_agent import ant_detection_sub_agent
@@ -20,12 +22,56 @@ from agent.subagents.crisis_managment_agent import crisis_management_agent
 from agent.subagents.dbt_agent import dbt_agent
 from agent.subagents.fallback_agent import fallback_agent
 from agent.subagents.memory_module import memory_module
-
-os.environ['GRPC_VERBOSITY'] = 'ERROR'
-os.environ['GLOG_minloglevel'] = '2'
+import uuid
 
 
 load_dotenv()
+
+
+class AsyncSqliteSaverAdapter(SqliteSaver):
+    """Adapter that wraps the sync SqliteSaver with async-friendly methods."""
+
+    async def aget_tuple(self, config):
+        return await asyncio.to_thread(super().get_tuple, config)
+
+    async def alist(
+        self,
+        config,
+        *,
+        filter=None,
+        before=None,
+        limit=None,
+    ):
+        def run_list():
+            return list(
+                super(AsyncSqliteSaverAdapter, self).list(
+                    config, filter=filter, before=before, limit=limit
+                )
+            )
+
+        items = await asyncio.to_thread(run_list)
+        for item in items:
+            yield item
+
+    async def aput(self, config, checkpoint, metadata, new_versions):
+        return await asyncio.to_thread(
+            super().put, config, checkpoint, metadata, new_versions
+        )
+
+    async def aput_writes(self, config, writes, task_id, task_path=""):
+        await asyncio.to_thread(
+            super().put_writes, config, writes, task_id, task_path
+        )
+
+    async def adelete_thread(self, thread_id):
+        await asyncio.to_thread(super().delete_thread, thread_id)
+
+
+sql_conn = sqlite3.connect("checkpoint.sqlite", check_same_thread=False)
+
+memory = AsyncSqliteSaverAdapter(sql_conn)
+os.environ['GRPC_VERBOSITY'] = 'ERROR'
+os.environ['GLOG_minloglevel'] = '2'
 def create_handoff_tool(*, agent_name: str, description: str | None = None):
     name = f"transfer_to_{agent_name}"
     description = description or f"Ask {agent_name} for help."
@@ -149,7 +195,7 @@ supervisor = (
     .add_edge("fallback_agent", "supervisor")
     .add_edge("memory_module", "supervisor")
     .add_edge("ant_detection_sub_agent", "supervisor")
-    .compile()
+    .compile(checkpointer=memory)
 )
 
 
