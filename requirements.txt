@@ -1,7 +1,6 @@
 langchain
 langgraph
-beautifulsoup4
-lxml 
+beautifulsoup4 
 grandalf
 langchain-google-genai
 python-dotenv
@@ -12,3 +11,4 @@ pydantic
 httpx
 pytest
 pytest-asyncio
+pydantic[email]
